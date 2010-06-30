@@ -1,0 +1,92 @@
+#!/usr/bin/perl -w
+
+use lib "$ENV{HOME}/mb/bot/lib";
+use lib "$ENV{HOME}/mb/server/cgi-bin";
+
+use MusicBrainz;
+use Sql;
+
+use Data::Dumper;
+use Encode qw/decode/;
+
+die 'Fix already applied!';
+
+$Data::Dumper::Terse = 1;
+
+my $mb = new MusicBrainz;
+$mb->Login();
+my $sql = new Sql($mb->{DBH});
+
+my $tables = $sql->SelectSingleColumnArray("select table_name from information_schema.tables where table_schema='discogs' order by table_name");
+
+foreach my $table (@{$tables}) {
+	my $columns = $sql->SelectListOfHashes("select column_name, udt_name from information_schema.columns where table_schema='discogs' and table_name='$table' and udt_name in ('text', '_text') order by column_name");
+	
+	my $gpkey = $sql->SelectSingleValue("select column_name from information_schema.table_constraints k, information_schema.key_column_usage l where k.table_schema='discogs' and k.table_name='$table' and constraint_type='PRIMARY KEY' and k.constraint_name = l.constraint_name and l.constraint_schema = k.constraint_schema limit 1");
+	my $pkeycount = $sql->SelectSingleValue("select count(*) from information_schema.table_constraints k, information_schema.key_column_usage l where k.table_schema='discogs' and k.table_name='$table' and constraint_type='PRIMARY KEY' and k.constraint_name = l.constraint_name and l.constraint_schema = k.constraint_schema limit 1");
+	
+
+	foreach my $coldata (@{$columns}) {
+		$column = $coldata->{'column_name'};
+		$coltype = $coldata->{'udt_name'};
+		
+		my $pkey;
+		if (defined $gpkey && $pkeycount == 1) {
+			$pkey = $gpkey;
+		} else {
+			$pkey = $column;
+		}
+		
+		$colqname = $column;
+		if ($coltype eq '_text') { $colqname = "array_to_string($colqname, '')"; }
+		
+		print "--- $table.$column ---\n";
+		my $data = $sql->SelectListOfHashes("select $pkey pkey, $column colval FROM discogs.$table WHERE $colqname ~ E'[\\\\200-\\\\400]{2}'");
+		my $rowcount = 0;
+		
+		foreach my $row (@{$data}) {
+			if (++$rowcount % 500 == 0) {
+				print "...$rowcount\n";
+			}
+						
+			my $pkeyval = $row->{'pkey'};
+			my $colval = $row->{'colval'};
+
+			if ($coltype eq '_text') {
+				my @colvals = @{$colval};
+				for (my $i=0;$i<=$#colvals;$i++) {
+					$colvals[$i] = decode('utf8', $colvals[$i]);
+					$colvals[$i] =~ s/\\+'/\\'/g;
+					$colvals[$i] =~ s/\\+"/"/g;
+					$colvals[$i] =~ s/&amp;/&/g;
+				}
+				$colval = \@colvals;
+								
+				eval {
+					$colval = $sql->Quote($colval);
+					$colval =~ s/\\\\'/\\'/g;
+					$colval =~ s/\\"/\\\\"/g;
+					unless ($colval =~ /^E/) { $colval = "E$colval" };
+					#print "$colval\n";
+				}
+			} else {
+				$colval = decode('utf8', $colval);
+				$colval =~ s/\\+'/'/g;
+				$colval =~ s/\\+"/"/g;
+				$colval =~ s/&amp;/&/g;
+				
+				#print $colval . "\n";
+				eval {
+					$colval = $sql->Quote($colval);
+				};
+				unless ($colval =~ /^E/) { $colval = "E$colval"; }
+			}
+			
+			eval {
+				$sql->AutoCommit();
+				
+				$sql->Do("UPDATE discogs.$table SET $column=" . $colval . " WHERE $pkey=" . $sql->Quote($pkeyval));
+			}
+		}
+	}
+}

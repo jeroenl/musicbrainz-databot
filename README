@@ -1,0 +1,17 @@
+This is an edit bot that automatically combines data from different sources, and contributes data to the MusicBrainz project (www.musicbrainz.org). The source is provided here to give other editors insight into the inner workings of this bot, to help spot errors in the algorithm. In its current state, it will be hard to get running without help, but if there are other editors who want to start collaborating on this project, I'll be happy to make it more install-friendly.
+
+For those who want to read source, a quick overview.
+There are two major components:
+1. Data analysis, finds missing data and proposes edits (mainly in SQL)
+2. Edit bot, submits edits to MusicBrainz (in Perl)
+
+The data analysis part is done with a collection of views and functions.
+- schema/mbot.sql: defines the views and functions
+- runtasks: Runs functions after MusicBrainz replication. There is a schedule in the 'tasks' table that indicates after how many replication cycles a function is rerun.
+
+The edit bot source can be found in the Perl modules
+- runedits: launches the edit queue
+- lib/MusicBrainz/EditQueue.pm: queries which edit type has the most open edits and runs the edit runner for that type
+- lib/MusicBrainz/Edit/*: edit runners, in particular RelationshipTrack.pm creates ARs between artists and tracks
+
+Contact: http://musicbrainz.org/user/mod_email.html?uid=11780
