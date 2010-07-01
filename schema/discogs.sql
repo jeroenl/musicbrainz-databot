@@ -68,7 +68,7 @@ INSERT INTO mbot.edits_relationship_track
 (link0gid, link0type, link1gid, link1type, linktype, "release", source, sourceurl)
 SELECT * FROM discogs.tmp_discogs_trackrole_step_06_ready newedits
 WHERE NOT EXISTS
-	(SELECT 1 FROM discogs.edits_relationship_track edits
+	(SELECT 1 FROM mbot.edits_relationship_track edits
 		WHERE newedits.link0gid = edits.link0gid
 		AND newedits.link1gid = edits.link1gid
 		AND newedits.link0type = edits.link0type
@@ -111,11 +111,12 @@ d_track uuid not null,
 d_release integer not null,
 mb_release integer not null,
 title text not null,
-d_length text not null
+d_length text not null,
+dpos integer not null
 );
 
 insert into discogs.tmp_discogs_trackmap_step_01
-select t.track_id d_track, t.discogs_id d_release, a.id mb_release, title, duration d_length
+select t.track_id d_track, t.discogs_id d_release, a.id mb_release, title, duration d_length, trackseq
 from discogs.track t, discogs.dmap_release dr, musicbrainz.album a
 where dr.d_release = t.discogs_id and a.gid = dr.mb_release;
 
@@ -353,12 +354,12 @@ where
 not exists
 (select 1 from 
 musicbrainz.l_artist_track lat,
-musicbrainz.artist a1, musicbrainz.artist a2, discogs.mbmap_artist_equiv equiv
+musicbrainz.artist a1, musicbrainz.artist a2, mbot.mbmap_artist_equiv equiv
 where
 a1.id = mb_artist
 and a1.gid = equiv.artist and a2.gid = equiv.equiv
 and lat.link0 = a2.id and lat.link1 = mb_track and lat.link_type in ((select desc_type 
-	from discogs.mb_link_type_descs linkmap where linkmap.link_type = tar.link_type) union (select tar.link_type)));
+	from mbot.mb_link_type_descs linkmap where linkmap.link_type = tar.link_type) union (select tar.link_type)));
 
 drop table discogs.tmp_discogs_trackrole_step_04_allartists;
 
