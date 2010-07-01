@@ -17,29 +17,32 @@ my $sql = new Sql($mb->{DBH});
 
 my $editsbefore = $sql->SelectSingleValue('SELECT COUNT(*) FROM mbot.edits');
 
-my $tasks = $sql->SelectSingleColumnArray('SELECT task FROM mbot.tasks WHERE last_replication + frequency <= mbot.replseq() ORDER BY priority, task');
+my $tasks = $sql->SelectListOfHashes('SELECT schema, task FROM mbot.tasks WHERE last_replication + frequency <= mbot.replseq() ORDER BY priority, task');
 
-foreach my $task (@{$tasks}) {
+foreach my $taskrow (@{$tasks}) {
+	my $task = $taskrow->{'task'};
+	my $schema = $taskrow->{'schema'};
+	
 	$log->info(localtime() . " : Running task '$task'.\n");
 	
 	if ($task =~ /^upd_(.*)/) {
 		$tasktable = $1;
-		my $beforecount = $sql->SelectSingleValue("SELECT COUNT(*) FROM mbot.$tasktable");
+		my $beforecount = $sql->SelectSingleValue("SELECT COUNT(*) FROM $schema.$tasktable");
 		
-		$sql->SelectSingleValue("SELECT mbot.$task()");
+		$sql->SelectSingleValue("SELECT $schema.$task()");
 		
-		my $aftercount  = $sql->SelectSingleValue("SELECT COUNT(*) FROM mbot.$tasktable");
+		my $aftercount  = $sql->SelectSingleValue("SELECT COUNT(*) FROM $schema.$tasktable");
 		my $diff = $aftercount - $beforecount;
 		if ($diff >= 0) { $diff = '+' . $diff; }
 		$log->info(localtime() . " : Row count = $diff\n");
 	} elsif ($task =~ /^(tmp_.*)/) {
 		$tasktable = $1;
-		$sql->SelectSingleValue("SELECT mbot.$task()");
+		$sql->SelectSingleValue("SELECT $schema.$task()");
 		
-		my $aftercount  = $sql->SelectSingleValue("SELECT COUNT(*) FROM mbot.$tasktable");
+		my $aftercount  = $sql->SelectSingleValue("SELECT COUNT(*) FROM $schema.$tasktable");
 		$log->info(localtime() . " : Row count = $aftercount\n");
 	} else {
-		$sql->SelectSingleValue("SELECT mbot.$task()");
+		$sql->SelectSingleValue("SELECT $schema.$task()");
 	}
 }
 
