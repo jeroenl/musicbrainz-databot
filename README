@@ -6,7 +6,7 @@ There are two major components:
 2. Edit bot, submits edits to MusicBrainz (in Perl)
 
 The data analysis part is done with a collection of views and functions.
-- schema/mbot.sql: defines the views and functions
+- schema/*.sql: defines the views and functions
 - runtasks: Runs functions after MusicBrainz replication. There is a schedule in the 'tasks' table that indicates after how many replication cycles a function is rerun.
 
 The edit bot source can be found in the Perl modules
