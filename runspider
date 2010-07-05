@@ -1,0 +1,11 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings;
+
+use lib "$ENV{HOME}/mb/bot/lib";
+use lib "$ENV{HOME}/mb/server/cgi-bin";
+
+require MusicBrainz::DataBot::Spider;
+
+MusicBrainz::DataBot::Spider->run;

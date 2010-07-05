@@ -580,16 +580,6 @@ CREATE TABLE artist (
 
 
 --
--- Name: artists_images; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE artists_images (
-    image_uri text,
-    artist_name text
-);
-
-
---
 -- Name: country; Type: TABLE; Schema: discogs; Owner: -
 --
 
@@ -788,29 +778,6 @@ CREATE TABLE genre (
 
 
 --
--- Name: image; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE image (
-    height integer,
-    width integer,
-    type text,
-    uri text NOT NULL,
-    uri150 text
-);
-
-
---
--- Name: labels_images; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE labels_images (
-    image_uri text,
-    label_name text
-);
-
-
---
 -- Name: releases_artists; Type: TABLE; Schema: discogs; Owner: -
 --
 
@@ -833,24 +800,15 @@ CREATE TABLE releases_artists_joins (
 
 
 --
--- Name: releases_extraartists; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE releases_extraartists (
-    discogs_id integer,
-    artist_name text,
-    roles text[]
-);
-
-
---
 -- Name: releases_extraartists_roles; Type: TABLE; Schema: discogs; Owner: -
 --
 
 CREATE TABLE releases_extraartists_roles (
     discogs_id integer,
     artist_name text,
-    role_name text
+    role_name text,
+    role_details text,
+    artist_alias text
 );
 
 
@@ -863,16 +821,6 @@ CREATE TABLE releases_formats (
     format_name text,
     qty integer,
     descriptions text[]
-);
-
-
---
--- Name: releases_images; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE releases_images (
-    image_uri text,
-    discogs_id integer
 );
 
 
@@ -907,7 +855,8 @@ CREATE TABLE track (
     "position" text,
     track_id uuid NOT NULL,
     albumseq integer DEFAULT 1 NOT NULL,
-    trackseq integer
+    trackseq integer,
+    durationms integer
 );
 
 
@@ -941,7 +890,8 @@ CREATE TABLE tracks_extraartists_roles (
     artist_name text,
     role_name text,
     role_details text,
-    track_id uuid NOT NULL
+    track_id uuid NOT NULL,
+    artist_alias text
 );
 
 
@@ -1018,14 +968,6 @@ ALTER TABLE ONLY genre
 
 
 --
--- Name: image_pkey; Type: CONSTRAINT; Schema: discogs; Owner: -
---
-
-ALTER TABLE ONLY image
-    ADD CONSTRAINT image_pkey PRIMARY KEY (uri);
-
-
---
 -- Name: label_pkey; Type: CONSTRAINT; Schema: discogs; Owner: -
 --
 
@@ -1066,13 +1008,6 @@ ALTER TABLE ONLY tracks_artists
 
 
 --
--- Name: artists_images_idx_artist_name; Type: INDEX; Schema: discogs; Owner: -
---
-
-CREATE INDEX artists_images_idx_artist_name ON artists_images USING btree (artist_name);
-
-
---
 -- Name: discogs_artist_url_idx_url; Type: INDEX; Schema: discogs; Owner: -
 --
 
@@ -1108,13 +1043,6 @@ CREATE INDEX dmap_track_idx_d_track ON dmap_track USING btree (d_track);
 
 
 --
--- Name: labels_images_label_name; Type: INDEX; Schema: discogs; Owner: -
---
-
-CREATE INDEX labels_images_label_name ON labels_images USING btree (label_name);
-
-
---
 -- Name: releases_artists_idx_artist_name; Type: INDEX; Schema: discogs; Owner: -
 --
 
@@ -1133,13 +1061,6 @@ CREATE INDEX releases_artists_join_idx_artist1 ON releases_artists_joins USING b
 --
 
 CREATE INDEX releases_artists_join_idx_artist2 ON releases_artists_joins USING btree (artist2);
-
-
---
--- Name: releases_extraartists_idx_artist_name; Type: INDEX; Schema: discogs; Owner: -
---
-
-CREATE INDEX releases_extraartists_idx_artist_name ON releases_extraartists USING btree (artist_name);
 
 
 --
@@ -1266,43 +1187,11 @@ CREATE TRIGGER dmap_role_gen_tquery
 
 
 --
--- Name: artists_images_artist_name_fkey; Type: FK CONSTRAINT; Schema: discogs; Owner: -
---
-
-ALTER TABLE ONLY artists_images
-    ADD CONSTRAINT artists_images_artist_name_fkey FOREIGN KEY (artist_name) REFERENCES artist(name) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
--- Name: artists_images_image_uri_fkey; Type: FK CONSTRAINT; Schema: discogs; Owner: -
---
-
-ALTER TABLE ONLY artists_images
-    ADD CONSTRAINT artists_images_image_uri_fkey FOREIGN KEY (image_uri) REFERENCES image(uri) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
 -- Name: foreign_did; Type: FK CONSTRAINT; Schema: discogs; Owner: -
 --
 
 ALTER TABLE ONLY releases_labels
-    ADD CONSTRAINT foreign_did FOREIGN KEY (discogs_id) REFERENCES release(discogs_id);
-
-
---
--- Name: labels_images_image_uri_fkey; Type: FK CONSTRAINT; Schema: discogs; Owner: -
---
-
-ALTER TABLE ONLY labels_images
-    ADD CONSTRAINT labels_images_image_uri_fkey FOREIGN KEY (image_uri) REFERENCES image(uri) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
--- Name: labels_images_label_name_fkey; Type: FK CONSTRAINT; Schema: discogs; Owner: -
---
-
-ALTER TABLE ONLY labels_images
-    ADD CONSTRAINT labels_images_label_name_fkey FOREIGN KEY (label_name) REFERENCES label(name) ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT foreign_did FOREIGN KEY (discogs_id) REFERENCES release(discogs_id) ON DELETE CASCADE;
 
 
 --
@@ -1322,14 +1211,6 @@ ALTER TABLE ONLY releases_artists_joins
 
 
 --
--- Name: releases_extraartists_fkey_discogs_id; Type: FK CONSTRAINT; Schema: discogs; Owner: -
---
-
-ALTER TABLE ONLY releases_extraartists
-    ADD CONSTRAINT releases_extraartists_fkey_discogs_id FOREIGN KEY (discogs_id) REFERENCES release(discogs_id) ON DELETE CASCADE;
-
-
---
 -- Name: releases_extraartists_roles_fkey_discogs_id; Type: FK CONSTRAINT; Schema: discogs; Owner: -
 --
 
@@ -1343,30 +1224,6 @@ ALTER TABLE ONLY releases_extraartists_roles
 
 ALTER TABLE ONLY releases_formats
     ADD CONSTRAINT releases_formats_fkey_discogs_id FOREIGN KEY (discogs_id) REFERENCES release(discogs_id) ON DELETE CASCADE;
-
-
---
--- Name: releases_formats_format_name_fkey; Type: FK CONSTRAINT; Schema: discogs; Owner: -
---
-
-ALTER TABLE ONLY releases_formats
-    ADD CONSTRAINT releases_formats_format_name_fkey FOREIGN KEY (format_name) REFERENCES format(name) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
--- Name: releases_images_fkey_discogs_id; Type: FK CONSTRAINT; Schema: discogs; Owner: -
---
-
-ALTER TABLE ONLY releases_images
-    ADD CONSTRAINT releases_images_fkey_discogs_id FOREIGN KEY (discogs_id) REFERENCES release(discogs_id) ON DELETE CASCADE;
-
-
---
--- Name: releases_images_image_uri_fkey; Type: FK CONSTRAINT; Schema: discogs; Owner: -
---
-
-ALTER TABLE ONLY releases_images
-    ADD CONSTRAINT releases_images_image_uri_fkey FOREIGN KEY (image_uri) REFERENCES image(uri) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
