@@ -89,6 +89,7 @@ sub run_task {
 	my $albumseq = 0;
 	my $trackseq = 0;
 	my $lastdiscmarker = '';
+	my $albumseq_enabled = 1;
 	foreach my $track (@{$release->{'tracklist'}->{'track'}}) {
 		unless ($track->{'position'}) {
 			$self->info("Skipping track: $track->{title} (no position)");
@@ -102,7 +103,7 @@ sub run_task {
 		
 		$trackseq++;
 		
-		if ($track->{'position'} =~ /(.*)-[^-]+$/) {
+		if ($albumseq_enabled && $track->{'position'} =~ /(.*)[.-][^.-]+$/) {
 			unless ($1 eq $lastdiscmarker) {
 				$lastdiscmarker = $1;
 				$albumseq++;
@@ -111,7 +112,10 @@ sub run_task {
 			}
 		}
 		
-		$albumseq = 1, if $albumseq == 0;
+		if ($albumseq == 0) {
+			$albumseq = 1;
+			$albumseq_enabled = 0;
+		}
 		
 		$self->debug("$track->{position}. $track->{title}");
 		
