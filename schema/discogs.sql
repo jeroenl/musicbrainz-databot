@@ -1187,6 +1187,14 @@ CREATE TRIGGER dmap_role_gen_tquery
 
 
 --
+-- Name: discogs_release_url_fk_discogs_id; Type: FK CONSTRAINT; Schema: discogs; Owner: -
+--
+
+ALTER TABLE ONLY discogs_release_url
+    ADD CONSTRAINT discogs_release_url_fk_discogs_id FOREIGN KEY (discogs_id) REFERENCES release(discogs_id) ON DELETE CASCADE;
+
+
+--
 -- Name: foreign_did; Type: FK CONSTRAINT; Schema: discogs; Owner: -
 --
 

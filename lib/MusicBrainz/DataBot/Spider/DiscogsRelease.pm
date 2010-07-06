@@ -57,6 +57,11 @@ sub run_task {
 		 genres => $self->quote_array($release->{'genres'}->{'genre'}),
 		 styles => $self->quote_array($release->{'styles'}->{'style'})
 		});
+		
+	$sql->InsertRow('discogs.discogs_release_url', 
+		{discogs_id => $release->{'id'},
+		 url => 'http://www.discogs.com/release/' . $release->{'id'}
+		});
 		 
 	foreach my $artist (@{$release->{'artists'}->{'artist'}}) {
 		$sql->InsertRow('discogs.releases_artists',
