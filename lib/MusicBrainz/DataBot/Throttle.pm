@@ -3,19 +3,20 @@ package MusicBrainz::DataBot::Throttle;
 require MusicBrainz::DataBot::Log;
 
 our %freq = 
-	( 
+	(
+	 # generic
+	 taskquery => 900,
+	 
 	 # runedits
 	 mbedit => 15,
 	 mbsite => 1,
 	 mbapi => 1,
 	 mberror => 60,
-	 editquery => 900,
 	 
 	 # runtasks
 	 mbreplicate => 3600,
 	 
 	 # runspider
-	 flyquery => 900,
 	 discogsapi => 5,
 	 nodiscogs => 3600
 	 );

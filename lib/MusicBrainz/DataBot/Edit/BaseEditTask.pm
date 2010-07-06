@@ -1,92 +1,30 @@
-package MusicBrainz::DataBot::Edit;
+package MusicBrainz::DataBot::Edit::BaseEditTask;
 
 use Moose;
-use WWW::Mechanize;
-use Log::Dispatch;
-use Log::Dispatch::File;
-use Log::Dispatch::Screen;
 
-use MusicBrainz::DataBot::Throttle;
 use MusicBrainz::DataBot::BotConfig;
+
+extends 'MusicBrainz::DataBot::BaseTask';
+
+has '+schema' => (default => 'mbot');
+has 'autoedit' => (is => 'ro', default => 0);
 
 # Types
 require MusicBrainz::DataBot::Edit::ArtistType;
 require MusicBrainz::DataBot::Edit::Relationship;
 require MusicBrainz::DataBot::Edit::RelationshipTrack;
 
-has 'bot' => (is => 'rw', required => 1);
-has 'sql' => (is => 'rw', required => 1);
-
-### To be defined by children
-sub edit_type
+sub ready
 {
-	die 'Not defined';
-}
-
-sub edit_query
-{
-	die 'Not defined';
-}
-
-sub autoedit
-{
-	return 0;
-}
-
-### Exposed to other classes
-
-sub process_edits {
 	my $self = shift;
-	my $sql = $self->sql;
 	
-	my $editsref = $sql->SelectListOfHashes($self->edit_query);
-	my @edits = @$editsref;
-	my $numedits = scalar @edits;
-
-	$self->debug("Loaded $numedits edits.");
-	
-	foreach my $edit (@edits) {
-		eval {
-			$self->process_edit($edit);
-		};
-		
-		if ($@) {
-			$self->edit_failure($edit->{id}, $@);
-			$self->throttle('mberror');
+	unless ($self->autoedit) {
+		if ($self->openeditcount > 200) {
+			return 0;
 		}
 	}
 	
-	$self->debug('Finished edits.');
-}
-
-### For use by children
-
-# Store edit result
-sub edit_success
-{
-	my ($self, $edit) = @_;
-	my $sql = $self->sql;
-	
-	$self->info("Edit $edit was successful!");
-	$sql->AutoCommit;
-	# $sql->update_row('mbot.' . $self->edit_type, {date_processed => 'NOW()', error => undef}, {id => $edit}) or $self->error("Error recording edit result");
-	$sql->Do("UPDATE mbot." . $self->edit_type . " SET date_processed = NOW(), error = NULL WHERE id=$edit") or $self->error("Error recording edit result");
-	
-	return 1; # Exit without error
-}
-
-sub edit_failure
-{
-	my ($self, $edit, $message) = @_;
-	my $sql = $self->sql;
-	
-	$self->error("Edit $edit failed: $message");
-	$sql->AutoCommit;
-	#$sql->update_row('mbot.' . $self->edit_type, {date_processed => 'NOW()', error => $message}, {id => $edit}) or $self->error("Error recording edit result");
-	$message = $sql->Quote($message);
-	$sql->Do("UPDATE mbot." . $self->edit_type . " SET date_processed = NOW(), error = $message WHERE id=$edit") or $self->error("Error recording edit result");
-	
-	return 0; # Exit with error
+	return 1;
 }
 
 # Check login
@@ -210,11 +148,42 @@ sub find_all_discogs_urls
 		   lu.entity0 = $id");
 }
 
-# Logging
-sub debug { my ($self, $message) = @_; MusicBrainz::DataBot::EditQueue->debug($message); }
-sub info  { my ($self, $message) = @_; MusicBrainz::DataBot::EditQueue->info($message); }
-sub error { my ($self, $message) = @_; MusicBrainz::DataBot::EditQueue->error($message); }
+#################################################################################
 
-# Throttle
-sub throttle { my ($self, $area) = @_; MusicBrainz::DataBot::Throttle->throttle($area); }
+# Retrieve unreviewed edit count (= open without yes/abstain vote from approver)
+sub openeditcount {
+	my $self = shift;
+	
+	my $botuserid = &MusicBrainz::DataBot::BotConfig::MB_BOTUSERID;
+	my $approverid = &MusicBrainz::DataBot::BotConfig::MB_APPROVERID;
+	
+	my $openedits = $self->_openeditcount_for_user($botuserid, $approverid);
+	$self->info("Bot user has $openedits unreviewed edits.");
+	
+	return $openedits;
+}
+
+sub _openeditcount_for_user {
+	my ($self, $userid, $approverid) = @_;
+	my $bot = $self->bot;
+	
+	$self->throttle('mbsite');
+	eval { 
+		$bot->get('http://musicbrainz.org/mod/search/results.html?mod_status=1&automod=&moderator_type=3&voter_type=1&voter_id=' . $approverid . '&vote_cast=-2&vote_cast=0&artist_type=0&orderby=desc&minid=&maxid=&isreset=0&moderator_id=' . $userid);
+	};
+	$self->check_login;
+	my $content = $bot->content;
+	
+	if ($content =~ /No edits found matching the current selection/g) {
+		return 0;
+	}
+	
+	unless ($content =~ /Found ([0-9]+) edits?\s+matching the current selection/g) {
+		$self->error("Could not find open edit count for user $userid.");
+		return 1000000; # Returning high open count, to block edits until this is fixed.
+	}
+	
+	return $1;
+}	
+
 1;

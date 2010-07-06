@@ -15,19 +15,19 @@ has 'sql' => (is => 'rw', required => 1);
 has 'uuidgen' => (is => 'ro', lazy => 1, default => sub { return new OSSP::uuid; } );
 
 ### To be defined by children
-sub type
+has 'type' => (is => 'ro', required => 1);
+has 'query' => (is => 'ro', required => 1, 
+		lazy => 1, default => sub { die 'Not defined' });
+has 'schema' => (is => 'ro', required => 1);
+
+sub run_task
 {
 	die 'Not defined';
 }
 
-sub query
+sub ready
 {
-	die 'Not defined';
-}
-
-sub schema
-{
-	die 'Not defined';
+	return 1;
 }
 
 ### Exposed to other classes
@@ -43,9 +43,9 @@ sub run_tasks {
 	$self->debug("Loaded $numtasks tasks.");
 	
 	foreach my $task (@tasks) {
-#		eval {
+		eval {
 			$self->run_task($task);
-#		};
+		};
 		
 		if ($@) {
 			$self->report_failure($task->{id}, $@);

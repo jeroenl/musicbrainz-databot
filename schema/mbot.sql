@@ -67,7 +67,7 @@ $$;
 CREATE FUNCTION i_edits() RETURNS trigger
     LANGUAGE plpgsql
     AS $$BEGIN
-	NEW.edit_type = TG_RELNAME;
+	NEW.type = TG_RELNAME;
 	RETURN NEW;
 END$$;
 
@@ -280,7 +280,7 @@ SET default_with_oids = false;
 
 CREATE TABLE edits (
     id integer NOT NULL,
-    edit_type character varying(30) NOT NULL,
+    type character varying(30) NOT NULL,
     source character varying(30) NOT NULL,
     date_added timestamp with time zone DEFAULT now() NOT NULL,
     date_processed timestamp with time zone,

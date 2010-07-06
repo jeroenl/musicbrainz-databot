@@ -2,27 +2,20 @@ package MusicBrainz::DataBot::Edit::ArtistType;
 
 use Moose;
 
-extends 'MusicBrainz::DataBot::Edit';
+extends 'MusicBrainz::DataBot::Edit::BaseEditTask';
 
-sub autoedit {
-	return 1;
-}
+has '+autoedit' => (default => 1);
+has '+type' => (default => 'edits_artist_typechange');
+has '+query' => 
+	(default => sub { 
+	  	my $self = shift;
+	  	return 'SELECT e.id, e.newtype, e.artistgid gid
+			  FROM ' . $self->schema . '.' . $self->type . ' e
+			  WHERE date_processed IS NULL
+			  ORDER BY e.id ASC
+			  LIMIT 50'; });
 
-sub edit_type {
-	return 'edits_artist_typechange';
-}
-
-sub edit_query 
-{
-	my $self = shift;
-	return 'SELECT e.id, e.newtype, e.artistgid gid
-		  FROM mbot.' . $self->edit_type . ' e
-		  WHERE date_processed IS NULL
-		  ORDER BY e.id ASC
-		  LIMIT 50';
-}
-
-sub process_edit {
+sub run_task {
 	my ($self, $edit) = @_;
 	my $bot = $self->bot;
 	$self->debug("Processing edit $edit->{id}");
@@ -35,16 +28,16 @@ sub process_edit {
 	
 	my $edit_form = $bot->form_with_fields(qw/type sortname/);
 	if (!defined $edit_form) {
-		return $self->edit_failure($edit->{'id'}, 'Could not find edit form');
+		return $self->report_failure($edit->{'id'}, 'Could not find edit form');
 	}
 	if ($edit_form->value('type')) {
-		return $self->edit_failure($edit->{'id'}, 'Type already set');
+		return $self->report_failure($edit->{'id'}, 'Type already set');
 	}
 	if (defined $edit_form->find_input('confirm')) {
 		if ($edit_form->value('resolution')) {
 			$bot->field('confirm', 1);
 		} else {
-			return $self->edit_failure($edit->{'id'}, 'Edit requires confirmation');
+			return $self->report_failure($edit->{'id'}, 'Edit requires confirmation');
 		}
 	}
 	
@@ -54,10 +47,10 @@ sub process_edit {
 	$bot->click_button( 'input' => $bot->current_form()->find_input( '#btnYes', 'submit' ) );
 	
 	if ($bot->title =~ /^Edit Artist/) {
-		return $self->edit_failure($edit->{'id'}, 'Edit was rejected');
+		return $self->report_failure($edit->{'id'}, 'Edit was rejected');
 	}
 	
-	return $self->edit_success($edit->{'id'});
+	return $self->report_success($edit->{'id'});
 }
 
 1;

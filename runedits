@@ -3,6 +3,6 @@
 use lib "$ENV{HOME}/mb/bot/lib";
 use lib "$ENV{HOME}/mb/server/cgi-bin";
 
-require MusicBrainz::DataBot::EditQueue;
+require MusicBrainz::DataBot::EditBot;
 
-MusicBrainz::DataBot::EditQueue->process_edits;
+MusicBrainz::DataBot::EditBot->run;
