@@ -16,7 +16,7 @@ our %freq =
 	 
 	 # runspider
 	 flyquery => 900,
-	 discogsapi => 10,
+	 discogsapi => 5,
 	 nodiscogs => 3600
 	 );
 our $sysstarttime = time();
