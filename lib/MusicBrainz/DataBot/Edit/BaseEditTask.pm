@@ -42,6 +42,8 @@ sub check_login
 		$bot->submit_form('form_id'=>'LoginForm', fields=>{'user'=>$mb_user, 'password'=>$mb_password});
 		if ($self->has_form_id('LoginForm')) { $self->error('Login failed'); }
 	}
+	
+	return 1;
 }
 
 sub has_form_id
@@ -111,9 +113,9 @@ sub _find_official_id
 	
 	return unless defined $link;
 	
-	$link->url =~ /id=([0-9]+)$/;
+	$link->url =~ /id=([0-9]+)$/
+		or return;
 	
-	return unless defined $1;
 	$id = int($1);
 	$self->debug("Found official $type id for $gid: $id");
 	
@@ -129,11 +131,12 @@ sub find_discogs_url
 	my ($self, $id, $type) = @_;
 	my $sql = $self->sql;
 	
-	return $sql->selectSingleValue(
-		"SELECT u.url
-		   FROM musicbrainz.l_${type}_url lu, musicbrainz.url u, musicbrainz.link l, musicbrainz.link_type lt
-		  WHERE lu.link = l.id and l.link_type = lt.id AND lu.entity1 = u.id AND lt.name = 'discogs' AND
-		   lu.entity0 = $id");
+	return $sql->selectSingleColumnArray( <<"END_OF_QUERY" );
+SELECT u.url
+  FROM musicbrainz.l_${type}_url lu, musicbrainz.url u, musicbrainz.link l, musicbrainz.link_type lt
+ WHERE lu.link = l.id and l.link_type = lt.id AND lu.entity1 = u.id AND lt.name = 'discogs' AND lu.entity0 = $id
+ 
+END_OF_QUERY
 }
 
 sub find_all_discogs_urls
@@ -141,11 +144,12 @@ sub find_all_discogs_urls
 	my ($self, $id, $type) = @_;
 	my $sql = $self->sql;
 	
-	return $sql->selectSingleColumnArray(
-		"SELECT u.url
-		   FROM musicbrainz.l_${type}_url lu, musicbrainz.url u, musicbrainz.link l, musicbrainz.link_type lt
-		  WHERE lu.link = l.id and l.link_type = lt.id AND lu.entity1 = u.id AND lt.name = 'discogs' AND
-		   lu.entity0 = $id");
+	return $sql->selectSingleColumnArray( <<"END_OF_QUERY" );
+SELECT u.url
+  FROM musicbrainz.l_${type}_url lu, musicbrainz.url u, musicbrainz.link l, musicbrainz.link_type lt
+ WHERE lu.link = l.id and l.link_type = lt.id AND lu.entity1 = u.id AND lt.name = 'discogs' AND lu.entity0 = $id
+ 
+END_OF_QUERY
 }
 
 #################################################################################
@@ -170,7 +174,8 @@ sub _openeditcount_for_user {
 	$self->throttle('mbsite');
 	eval { 
 		$bot->get('http://musicbrainz.org/mod/search/results.html?mod_status=1&automod=&moderator_type=3&voter_type=1&voter_id=' . $approverid . '&vote_cast=-2&vote_cast=0&artist_type=0&orderby=desc&minid=&maxid=&isreset=0&moderator_id=' . $userid);
-	};
+	} or do { return 1000000; };
+	
 	$self->check_login;
 	my $content = $bot->content;
 	
@@ -184,6 +189,6 @@ sub _openeditcount_for_user {
 	}
 	
 	return $1;
-}	
+}
 
 1;

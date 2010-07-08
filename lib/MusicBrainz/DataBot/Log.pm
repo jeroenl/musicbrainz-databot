@@ -20,17 +20,17 @@ class_has 'log' => (is => 'ro', default =>
 sub debug
 {
 	my ($self, $message) = @_;
-	$self->log->debug(localtime() . " $message \r\n"); 
+	return $self->log->debug(localtime() . " $message \r\n"); 
 }
 sub info 
 {
 	my ($self, $message) = @_; 
-	$self->log->info(localtime() . " $message \r\n");
+	return $self->log->info(localtime() . " $message \r\n");
 }
 sub error
 {
 	my ($self, $message) = @_; 
-	$self->log->error(localtime() . " $message \r\n");
+	return $self->log->error(localtime() . " $message \r\n");
 }
 
 1;

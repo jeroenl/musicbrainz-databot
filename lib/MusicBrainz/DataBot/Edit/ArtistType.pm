@@ -9,11 +9,17 @@ has '+type' => (default => 'edits_artist_typechange');
 has '+query' => 
 	(default => sub { 
 	  	my $self = shift;
-	  	return 'SELECT e.id, e.newtype, e.artistgid gid
-			  FROM ' . $self->schema . '.' . $self->type . ' e
-			  WHERE date_processed IS NULL
-			  ORDER BY e.id ASC
-			  LIMIT 50'; });
+	  	my $schema = $self->schema;
+	  	my $type = $self->type;
+	  	
+	  	return <<"END_OF_QUERY"; });
+SELECT e.id, e.newtype, e.artistgid gid
+  FROM $schema.$type e
+ WHERE date_processed IS NULL
+ ORDER BY e.id ASC
+ LIMIT 50
+
+END_OF_QUERY
 
 sub run_task {
 	my ($self, $edit) = @_;

@@ -10,7 +10,7 @@ use Sql;
 use MusicBrainz::DataBot::Throttle;
 
 has 'bot' => (is => 'ro', default => sub { my $m = WWW::Mechanize->new; $m->agent_alias('Windows IE 6'); return $m; } );
-has 'mbc' => (is => 'ro', default => sub { my $mb = new MusicBrainz; $mb->Login(); return $mb; } );
+has 'mbc' => (is => 'ro', default => sub { my $mb = MusicBrainz->new; $mb->Login(); return $mb; } );
 has 'sql' => (is => 'ro', builder => '_build_sql');
 has 'runners' => (is => 'ro', isa => 'HashRef', lazy => 1, builder => '_build_runners');
 
@@ -27,6 +27,8 @@ sub run {
 	while (1) {
 		$self->_run;
 	}
+	
+	return 1;
 }
 
 sub _run {
@@ -36,7 +38,6 @@ sub _run {
 	my $task_table = $self->task_table;
 
 	my %runners = %{$self->runners};
-	my $openeditcount;
 		
 	my $runnertypes = $sql->SelectSingleColumnArray("SELECT type from $task_table WHERE date_processed IS NULL GROUP BY type ORDER BY COUNT(1) DESC");
 
@@ -63,6 +64,8 @@ sub _run {
 	
 	$self->info('Nothing to be done, at the moment...');
 	$self->throttle('taskquery');
+	
+	return 1;
 }
 
 ### Utilities
@@ -71,7 +74,7 @@ sub _run {
 sub _build_sql
 {
 	my $self = shift;
-	my $sql = new Sql($self->mbc->{DBH});
+	my $sql = Sql->new($self->mbc->{DBH});
 	return $sql;
 }
 
@@ -98,23 +101,11 @@ sub _build_runners
 }
 
 # Logging
-sub debug
-{
-	my ($self, $message) = @_;
-	MusicBrainz::DataBot::Log->debug($message); 
-}
-sub info 
-{
-	my ($self, $message) = @_; 
-	MusicBrainz::DataBot::Log->info($message); 
-}
-sub error
-{
-	my ($self, $message) = @_; 
-	MusicBrainz::DataBot::Log->error($message); 
-}
+sub debug { my ($self, $message) = @_; return MusicBrainz::DataBot::Log->debug($message); }
+sub info  { my ($self, $message) = @_; return MusicBrainz::DataBot::Log->info($message); }
+sub error { my ($self, $message) = @_; return MusicBrainz::DataBot::Log->error($message); }
 
 # Throttle
-sub throttle { my ($self, $area) = @_; MusicBrainz::DataBot::Throttle->throttle($area); }
+sub throttle { my ($self, $area) = @_; return MusicBrainz::DataBot::Throttle->throttle($area); }
 
 1;

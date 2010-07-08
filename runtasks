@@ -1,5 +1,8 @@
 #!/usr/bin/perl -w
 
+use strict;
+use warnings;
+
 use lib "$ENV{HOME}/mb/bot/lib";
 use lib "$ENV{HOME}/mb/server/cgi-bin";
 
@@ -11,9 +14,9 @@ use Log::Dispatch::Screen;
 my $log = Log::Dispatch->new;
 $log->add ( Log::Dispatch::Screen->new ( name => 'debugscreen', min_level => 'debug' ) );
 
-my $mb = new MusicBrainz;
+my $mb = MusicBrainz->new;
 $mb->Login();
-my $sql = new Sql($mb->{DBH});
+my $sql = Sql->new($mb->{DBH});
 
 my $editsbefore = $sql->SelectSingleValue('SELECT COUNT(*) FROM mbot.edits');
 
@@ -26,7 +29,7 @@ foreach my $taskrow (@{$tasks}) {
 	$log->info(localtime() . " : Running task '$task'.\n");
 	
 	if ($task =~ /^upd_(.*)/) {
-		$tasktable = $1;
+		my $tasktable = $1;
 		my $beforecount = $sql->SelectSingleValue("SELECT COUNT(*) FROM $schema.$tasktable");
 		
 		$sql->SelectSingleValue("SELECT $schema.$task()");
@@ -36,7 +39,7 @@ foreach my $taskrow (@{$tasks}) {
 		if ($diff >= 0) { $diff = '+' . $diff; }
 		$log->info(localtime() . " : Row count = $diff\n");
 	} elsif ($task =~ /^(tmp_.*)/) {
-		$tasktable = $1;
+		my $tasktable = $1;
 		$sql->SelectSingleValue("SELECT $schema.$task()");
 		
 		my $aftercount  = $sql->SelectSingleValue("SELECT COUNT(*) FROM $schema.$tasktable");

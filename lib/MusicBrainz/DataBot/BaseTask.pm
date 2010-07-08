@@ -5,6 +5,8 @@ use WWW::Mechanize;
 use OSSP::uuid;
 
 use Scalar::Util 'reftype';
+use Carp qw/croak/;
+use feature 'switch';
 
 use MusicBrainz::DataBot::Throttle;
 
@@ -12,17 +14,17 @@ use MusicBrainz::DataBot::Throttle;
 has 'bot' => (is => 'rw', required => 1);
 has 'sql' => (is => 'rw', required => 1);
 
-has 'uuidgen' => (is => 'ro', lazy => 1, default => sub { return new OSSP::uuid; } );
+has 'uuidgen' => (is => 'ro', lazy => 1, default => sub { return OSSP::uuid->new; } );
 
 ### To be defined by children
 has 'type' => (is => 'ro', required => 1);
 has 'query' => (is => 'ro', required => 1, 
-		lazy => 1, default => sub { die 'Not defined' });
+		lazy => 1, default => sub { croak 'Not defined' });
 has 'schema' => (is => 'ro', required => 1);
 
 sub run_task
 {
-	die 'Not defined';
+	croak 'Not defined';
 }
 
 sub ready
@@ -44,16 +46,17 @@ sub run_tasks {
 	
 	foreach my $task (@tasks) {
 		eval {
-			$self->run_task($task);
-		};
-		
-		if ($@) {
+			$self->run_task($task); 
+			1;
+		} or do {
 			$self->report_failure($task->{id}, $@);
 			$self->throttle('mberror');
 		}
 	}
 	
 	$self->debug('Finished edits.');
+	
+	return 1;
 }
 
 ### For use by children
@@ -91,12 +94,12 @@ sub report_failure
 }
 
 # Logging
-sub debug { my ($self, $message) = @_; MusicBrainz::DataBot::Log->debug($message); }
-sub info  { my ($self, $message) = @_; MusicBrainz::DataBot::Log->info($message); }
-sub error { my ($self, $message) = @_; MusicBrainz::DataBot::Log->error($message); }
+sub debug { my ($self, $message) = @_; return MusicBrainz::DataBot::Log->debug($message); }
+sub info  { my ($self, $message) = @_; return MusicBrainz::DataBot::Log->info($message); }
+sub error { my ($self, $message) = @_; return MusicBrainz::DataBot::Log->error($message); }
 
 # Throttle
-sub throttle { my ($self, $area) = @_; MusicBrainz::DataBot::Throttle->throttle($area); }
+sub throttle { my ($self, $area) = @_; return MusicBrainz::DataBot::Throttle->throttle($area); }
 
 # Prepare an array for insertion into a text[] column
 sub quote_array {
@@ -106,13 +109,13 @@ sub quote_array {
 	my @value;
 	
 	foreach (@{$valueref}) {
-		$_ =~ s/'/''/g;
+		$_ =~ s/'/''/gx;
 		push @value, $_;
 	}
 	
 	my $quoted_value = 'E' . $sql->Quote(\@value);
-	$quoted_value =~ s/\\"/\\\\"/g;
-	$quoted_value =~ s/^EE/E/;
+	$quoted_value =~ s/\\"/\\\\"/gx;
+	$quoted_value =~ s/^EE/E/x;
 	
 	return \$quoted_value;
 }
@@ -130,22 +133,17 @@ sub gen_uuid {
 sub utf8_encode {
 	my ($self, $value) = @_;
 
-	if (!defined reftype $value) {
-		utf8::encode($value);
-		return $value;
-	} elsif (reftype $value eq 'ARRAY') {
-		return $self->utf8_encode_array($value);
-	} elsif (reftype $value eq 'HASH') {
-		if (%{$value}) {
-			return $self->utf8_encode_hash($value);
-		} else {
-			return '';
-		}
-	} elsif (reftype $value eq 'REF' || reftype $value eq 'SCALAR') {
-		return $self->utf8_encode($$value);
-	} else {
-		$self->error('Unknown reftype in utf8_encode: ' . reftype $value . "\n");
+	given (reftype $value) {
+		when (undef) { utf8::encode($value); }
+		
+		when ('REF' || 'SCALAR') { $value = $self->utf8_encode($$value); }
+		when ('ARRAY') { $value = $self->utf8_encode_array($value); }
+		when ('HASH') { $value = %{$value} ? $value = $self->utf8_encode_hash($value) : ''; }
+
+		default { $self->error('Unknown reftype in utf8_encode: ' . reftype $value . "\n"); }
 	}
+	
+	return $value;
 }
 
 sub utf8_encode_hash {

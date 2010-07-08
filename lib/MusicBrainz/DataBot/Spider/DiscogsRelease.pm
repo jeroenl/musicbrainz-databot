@@ -181,7 +181,9 @@ sub run_task {
 					}
 					
 					my $posstr = $first;
-					$posstr .= "-$last", if defined $last;
+					if (defined $last) {
+						$posstr .= "-$last";
+					}
 					
 					$self->debug_role($posstr, $artist, $role_name, $role_details);
 					
@@ -241,7 +243,7 @@ sub debug_role {
 		$name .= " ($artist->{anv})";
 	}
 	
-	$self->debug("$pos $name: $role_name");
+	return $self->debug("$pos $name: $role_name");
 }
 
 1;
