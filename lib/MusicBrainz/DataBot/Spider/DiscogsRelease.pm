@@ -169,7 +169,9 @@ sub run_task {
 			}
 			
 			if (defined $artist->{'tracks'}) {
-				foreach my $trackrange (split ', ', $artist->{'tracks'}) {
+				foreach my $trackrange (split ',', $artist->{'tracks'}) {
+					$trackrange =~ s/^ +//;
+					
 					my $first = $trackrange;
 					my $last;
 					
