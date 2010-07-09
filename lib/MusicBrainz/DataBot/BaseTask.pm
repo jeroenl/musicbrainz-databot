@@ -136,11 +136,11 @@ sub utf8_encode {
 	given (reftype $value) {
 		when (undef) { utf8::encode($value); }
 		
-		when ('REF' || 'SCALAR') { $value = $self->utf8_encode($$value); }
+		when (['REF', 'SCALAR']) { $value = $self->utf8_encode($$value); }
 		when ('ARRAY') { $value = $self->utf8_encode_array($value); }
 		when ('HASH') { $value = %{$value} ? $value = $self->utf8_encode_hash($value) : ''; }
 
-		default { $self->error('Unknown reftype in utf8_encode: ' . reftype $value . "\n"); }
+		default { $self->error('Unknown reftype in utf8_encode: ' . (reftype $value) . "\n"); }
 	}
 	
 	return $value;
