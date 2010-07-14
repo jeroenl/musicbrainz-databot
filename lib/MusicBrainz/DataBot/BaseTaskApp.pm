@@ -56,6 +56,7 @@ sub _run {
 		
 		unless ($runner->ready) {
 			$self->error("Runner '$runnertype' is not ready... skipping.");
+			next;
 		}
 		
 		$self->info("Running '$runnertype' tasks...");
