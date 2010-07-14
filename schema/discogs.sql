@@ -218,7 +218,7 @@ d_track uuid NOT NULL
 INSERT INTO discogs.tmp_discogs_trackrole_step_01
 select a.id mb_artist, role_name, track_id
 from discogs.tracks_extraartists_roles x, discogs.dmap_artist da, musicbrainz.artist a
-where artist_name = d_artist and gid = mb_artist;
+where artist_name = d_artist and COALESCE(artist_alias,'') = COALESCE(d_alias,'') and gid = mb_artist;
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackrole_step_01';
 
@@ -458,11 +458,31 @@ CREATE FUNCTION upd_dmap_artist() RETURNS void
 TRUNCATE discogs.dmap_artist;
 
 INSERT INTO discogs.dmap_artist
+(mb_artist, d_artist)
 SELECT * FROM discogs.dmap_artist_v;
 
+INSERT INTO discogs.dmap_artist
+(mb_artist, d_artist, d_alias)
+SELECT DISTINCT dmap.mb_artist, dmap.d_artist, tx.artist_alias
+FROM discogs.dmap_artist_v dmap, discogs.tracks_extraartists_roles tx
+WHERE tx.artist_name = dmap.d_artist
+AND tx.artist_alias IS NOT NULL;
+
 DELETE FROM discogs.dmap_artist map_out
-WHERE d_artist in (select d_artist from discogs.dmap_artist group by d_artist having count(1) > 1)
-AND mb_artist != (select mb_artist from discogs.dmap_artist map_in, musicbrainz.artist where gid=map_in.mb_artist and map_in.d_artist=map_out.d_artist order by levenshtein(name, map_in.d_artist) asc limit 1);
+WHERE EXISTS (select 1 FROM discogs.dmap_artist map_in 
+		WHERE map_out.d_artist = map_in.d_artist 
+		AND COALESCE(map_out.d_alias,'') = COALESCE(map_in.d_alias,'') 
+		HAVING count(1) > 1)
+AND mb_artist != 
+	(select mb_artist from discogs.dmap_artist map_in, musicbrainz.artist 
+		where gid=map_in.mb_artist and map_in.d_artist=map_out.d_artist 
+		and map_in.d_alias=map_out.d_alias 
+		order by least(
+			levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), name, 1, 10, 10),
+			(select 
+				min(levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), alias.name, 1, 10, 10))
+			 from musicbrainz.artistalias alias where alias.id = artist.id))
+	 asc limit 1);
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='upd_dmap_artist';
 
@@ -678,7 +698,8 @@ CREATE VIEW discogs_release_url_v AS
 
 CREATE TABLE dmap_artist (
     mb_artist character(36) NOT NULL,
-    d_artist text NOT NULL
+    d_artist text NOT NULL,
+    d_alias text
 );
 
 
@@ -1032,7 +1053,7 @@ CREATE INDEX discogs_release_url_idx_url ON discogs_release_url USING btree (url
 -- Name: dmap_artist_mv_dname; Type: INDEX; Schema: discogs; Owner: -
 --
 
-CREATE INDEX dmap_artist_mv_dname ON dmap_artist USING btree (d_artist);
+CREATE INDEX dmap_artist_mv_dname ON dmap_artist USING btree (d_artist, d_alias);
 
 
 --
