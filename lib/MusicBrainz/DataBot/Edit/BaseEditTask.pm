@@ -120,19 +120,19 @@ sub openeditcount {
 	my $botuserid = &MusicBrainz::DataBot::BotConfig::MB_BOTUSERID;
 	my $approverid = &MusicBrainz::DataBot::BotConfig::MB_APPROVERID;
 	
-	my $openedits = $self->_openeditcount_for_user($botuserid, $approverid);
+	my $openedits = $self->_editcount_on_url('http://musicbrainz.org/mod/search/results.html?mod_status=1&automod=&moderator_type=3&voter_type=1&voter_id=' . $approverid . '&vote_cast=-2&vote_cast=0&artist_type=0&orderby=desc&minid=&maxid=&isreset=0&moderator_id=' . $botuserid);
 	$self->info("Bot user has $openedits unreviewed edits.");
 	
 	return $openedits;
 }
 
-sub _openeditcount_for_user {
-	my ($self, $userid, $approverid) = @_;
+sub _editcount_on_url {
+	my ($self, $url) = @_;
 	my $bot = $self->bot;
 	
 	$self->throttle('mbsite');
 	eval { 
-		$bot->get('http://musicbrainz.org/mod/search/results.html?mod_status=1&automod=&moderator_type=3&voter_type=1&voter_id=' . $approverid . '&vote_cast=-2&vote_cast=0&artist_type=0&orderby=desc&minid=&maxid=&isreset=0&moderator_id=' . $userid);
+		$bot->get($url);
 	} or do { return 1000000; };
 	
 	$self->check_login;
@@ -143,7 +143,7 @@ sub _openeditcount_for_user {
 	}
 	
 	unless ($content =~ /Found ([0-9]+) edits?\s+matching the current selection/g) {
-		$self->error("Could not find open edit count for user $userid.");
+		$self->error("Could not find edit count on page.");
 		return 1000000; # Returning high open count, to block edits until this is fixed.
 	}
 	
