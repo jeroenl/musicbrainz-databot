@@ -374,17 +374,6 @@ CREATE TABLE mbmap_artist_equiv (
 
 
 --
--- Name: mbmap_official_id; Type: TABLE; Schema: mbot; Owner: -
---
-
-CREATE TABLE mbmap_official_id (
-    gid uuid NOT NULL,
-    type character varying(10) NOT NULL,
-    official_id integer NOT NULL
-);
-
-
---
 -- Name: tasks; Type: TABLE; Schema: mbot; Owner: -
 --
 
@@ -418,14 +407,6 @@ ALTER TABLE ONLY edits_artist_typechange
 
 ALTER TABLE ONLY edits
     ADD CONSTRAINT edits_pk PRIMARY KEY (id);
-
-
---
--- Name: mbmap_official_id_pk; Type: CONSTRAINT; Schema: mbot; Owner: -
---
-
-ALTER TABLE ONLY mbmap_official_id
-    ADD CONSTRAINT mbmap_official_id_pk PRIMARY KEY (type, gid);
 
 
 --

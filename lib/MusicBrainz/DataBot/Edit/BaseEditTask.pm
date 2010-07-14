@@ -59,33 +59,10 @@ sub has_form_id
 
 
 # Translate from gid to id on MusicBrainz server
-sub find_artist_id 
-{
-	my ($self, $gid) = @_;
-	return $self->_find_official_id('artist', $gid);
-	
-}
-
-sub find_releasegroup_id 
-{
-	my ($self, $gid) = @_;
-	return $self->_find_official_id('release-group', $gid);
-	
-}
-
-sub find_release_id 
-{
-	my ($self, $gid) = @_;
-	return $self->_find_official_id('release', $gid);
-	
-}
-
-sub find_track_id 
-{
-	my ($self, $gid) = @_;
-	return $self->_find_official_id('track', $gid);
-	
-}
+sub find_artist_id { my ($self, $gid) = @_; return $self->_find_official_id('artist', $gid); }
+sub find_releasegroup_id { my ($self, $gid) = @_; return $self->_find_official_id('release-group', $gid); }
+sub find_release_id { my ($self, $gid) = @_; return $self->_find_official_id('release', $gid); }
+sub find_track_id { my ($self, $gid) = @_; return $self->_find_official_id('track', $gid); }
 
 sub _find_official_id
 {
@@ -96,33 +73,15 @@ sub _find_official_id
 	my $localtype = $type;
 	if ($localtype eq 'release') { $localtype = 'album'; }
 	my $localid = $sql->SelectSingleValue("SELECT id from musicbrainz.$localtype WHERE gid='$gid'");
+
 	if (defined $localid) {
-		$self->debug("Found official $type id for $gid: $localid (local)");
+		$self->debug(ucfirst($type) . ": $gid ($localid)");
 		return $localid;
+	} else {
+		$self->error("No $type with GID $gid found");
 	}
 	
-	my $id = $sql->SelectSingleValue("SELECT official_id from mbot.mbmap_official_id WHERE gid='$gid' AND type='$type'");
-	if (defined $id) {
-		$self->debug("Found official $type id for $gid: $id (cached)");
-		return $id;
-	}
-	
-	$self->throttle('mbsite');
-	$bot->get(sprintf('http://musicbrainz.org/%s/%s.html', $type, $gid));
-	my $link = $bot->find_link( url_regex => qr/${type}\/.*id=[0-9]+$/ );
-	
-	return unless defined $link;
-	
-	$link->url =~ /id=([0-9]+)$/
-		or return;
-	
-	$id = int($1);
-	$self->debug("Found official $type id for $gid: $id");
-	
-	$sql->AutoCommit;
-	$sql->InsertRow('mbot.mbmap_official_id', {gid => $gid, type => $type, official_id => $id});
-	
-	return $id;
+	return 0;
 }
 
 # Discogs URL
