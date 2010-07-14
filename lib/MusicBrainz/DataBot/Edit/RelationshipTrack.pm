@@ -272,7 +272,8 @@ sub note_text {
 
 
 		my $otherartists = $sql->SelectListOfHashes(
-			"SELECT txr.artist_name, txr.artist_alias, artist.name, artist.resolution,
+			"SELECT txr.artist_name, artist.name, artist.resolution,
+					COALESCE(txr.artist_alias, '') artist_alias,
 					COALESCE(txr.artist_alias, txr.artist_name) nametext
 				FROM discogs.tracks_extraartists_roles txr, discogs.dmap_artist,
 					discogs.dmap_role, musicbrainz.artist, musicbrainz.lt_artist_track lt
