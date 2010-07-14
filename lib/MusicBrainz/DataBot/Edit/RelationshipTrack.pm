@@ -313,7 +313,7 @@ sub note_text {
 					$note .= "* $other->{nametext} - is listed, MB artist '$listed->{name}"
 							. ($listed->{'resolution'} ? " ($listed->{resolution})" : '') . "'\n";
 				} else {
-					$note .= "* $other->{nametext} - is new, MB artist '$other->{name}"
+					$note .= "* $other->{nametext} - new link, MB artist '$other->{name}"
 							. ($other->{'resolution'} ? " ($other->{resolution})" : '') . "'\n";
 				}
 			}
