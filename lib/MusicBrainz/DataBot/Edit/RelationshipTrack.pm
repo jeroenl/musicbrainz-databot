@@ -90,6 +90,7 @@ sub run_task {
 				WHERE dmap_track.d_track = d_t.track_id
 					AND rel_url.discogs_id = d_t.discogs_id
 					AND txr.track_id = d_t.track_id AND txr.artist_name = dmap_artist.d_artist
+					AND COALESCE(txr.artist_alias, '') = COALESCE(dmap_artist.d_alias, '')
 					AND dmap_role.link_name = lt.name AND dmap_role.role_name = txr.role_name
 					AND dmap_artist.mb_artist = '$edit->{link0gid}'
 					AND dmap_track.mb_track = '$edit->{link1gid}'
@@ -253,13 +254,15 @@ sub note_text {
 		# and save a bit more Discogs-specific info in the table, I would not have to link so many tables...
 		my $d_track = $sql->SelectSingleRowHash(
 			"SELECT d_t.track_id, d_t.title tracktitle, position, artist_name, txr.role_name, 
-					txr.role_details, release.title reltitle
+					txr.role_details, release.title reltitle, 
+					COALESCE(artist_alias, artist_name) nametext
 				FROM discogs.track d_t, discogs.dmap_track, discogs.discogs_release_url rel_url,
 					discogs.tracks_extraartists_roles txr, discogs.dmap_artist,
 					discogs.dmap_role, musicbrainz.lt_artist_track lt,	discogs.release
 				WHERE dmap_track.d_track = d_t.track_id
 					AND rel_url.discogs_id = d_t.discogs_id AND release.discogs_id = d_t.discogs_id
 					AND txr.track_id = d_t.track_id AND txr.artist_name = dmap_artist.d_artist
+					AND COALESCE(txr.artist_alias, '') = COALESCE(dmap_artist.d_alias, '')
 					AND dmap_role.link_name = lt.name AND dmap_role.role_name = txr.role_name
 					AND dmap_artist.mb_artist = '$edit->{link0gid}'
 					AND dmap_track.mb_track = '$edit->{link1gid}'
@@ -269,10 +272,12 @@ sub note_text {
 
 
 		my $otherartists = $sql->SelectListOfHashes(
-			"SELECT txr.artist_name, artist.name, artist.resolution
+			"SELECT txr.artist_name, txr.artist_alias, artist.name, artist.resolution,
+					COALESCE(txr.artist_alias, txr.artist_name) nametext
 				FROM discogs.tracks_extraartists_roles txr, discogs.dmap_artist,
 					discogs.dmap_role, musicbrainz.artist, musicbrainz.lt_artist_track lt
 				WHERE txr.artist_name = dmap_artist.d_artist 
+					AND COALESCE(txr.artist_alias, '') = COALESCE(dmap_artist.d_alias, '')
 					AND dmap_role.link_name = lt.name and dmap_role.role_name = txr.role_name
 					AND artist.gid = dmap_artist.mb_artist
 					AND txr.track_id = '$d_track->{track_id}'
@@ -280,15 +285,11 @@ sub note_text {
 					AND lt.id = $edit->{linktype}"
 			);
 			
-		# Temporary, until I fix this in the data
-		$d_track->{'tracktitle'} =~ s/\\'/'/g;
-		$d_track->{'reltitle'} =~ s/\\'/'/g;
-		
 		my $note = 
 			"Discogs has:\n" .
 			($d_track->{'position'} ? $d_track->{'position'} . '. ' : '') . $d_track->{tracktitle}
 				. " - $d_track->{role_name}" . ($d_track->{'role_details'} ? " ($d_track->{role_details})" : '') 
-				. ": $d_track->{artist_name}\n";
+				. ": $d_track->{nametext}\n";
 			
 		if (@{$otherartists}) {
 			$note .= "\nCo-credited with:\n";
@@ -302,20 +303,19 @@ sub note_text {
 							AND artist.gid = equiv.equiv AND equiv.artist = dmap_artist.mb_artist
 							AND track.gid = '$edit->{link1gid}'
 							AND dmap_artist.d_artist = '$other->{artist_name}'
+							AND COALESCE(dmap_artist.d_alias, '') = '$other->{artist_alias}'
 							AND l.link_type = $edit->{linktype}
 						LIMIT 1"
 				);
 				
 				if ($listed) {
-					$note .= "* $other->{artist_name} - already listed, MB artist '$listed->{name}"
+					$note .= "* $other->{nametext} - is listed, MB artist '$listed->{name}"
 							. ($listed->{'resolution'} ? " ($listed->{resolution})" : '') . "'\n";
 				} else {
-					$note .= "* $other->{artist_name} - link will be added too, MB artist '$other->{name}"
+					$note .= "* $other->{nametext} - is new, MB artist '$other->{name}"
 							. ($other->{'resolution'} ? " ($other->{resolution})" : '') . "'\n";
 				}
 			}
-			
-			$note .= "(all Discogs mapping done through Discogs ARs)\n";
 		}
 		$note .= "\n";
 		
