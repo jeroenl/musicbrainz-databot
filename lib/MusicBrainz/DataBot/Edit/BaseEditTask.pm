@@ -19,7 +19,7 @@ sub ready
 	my $self = shift;
 	
 	unless ($self->autoedit) {
-		if ($self->openeditcount > 200) {
+		if ($self->openeditcount > 500) {
 			return 0;
 		}
 	}
