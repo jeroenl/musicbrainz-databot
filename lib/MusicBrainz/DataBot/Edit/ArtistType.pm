@@ -6,20 +6,6 @@ extends 'MusicBrainz::DataBot::Edit::BaseEditTask';
 
 has '+autoedit' => (default => 1);
 has '+type' => (default => 'edits_artist_typechange');
-has '+query' => 
-	(default => sub { 
-	  	my $self = shift;
-	  	my $schema = $self->schema;
-	  	my $type = $self->type;
-	  	
-	  	return <<"END_OF_QUERY"; });
-SELECT e.id, e.newtype, e.artistgid gid
-  FROM $schema.$type e
- WHERE date_processed IS NULL
- ORDER BY e.id ASC
- LIMIT 50
-
-END_OF_QUERY
 
 sub run_task {
 	my ($self, $edit) = @_;

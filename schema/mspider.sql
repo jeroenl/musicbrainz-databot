@@ -75,6 +75,14 @@ INHERITS (tasks);
 
 
 --
+-- Name: batch_tasks_discogs_release; Type: VIEW; Schema: mspider; Owner: -
+--
+
+CREATE VIEW batch_tasks_discogs_release AS
+    SELECT e.id, e.discogs_id FROM tasks_discogs_release e WHERE (e.date_processed IS NULL) ORDER BY e.id LIMIT 50;
+
+
+--
 -- Name: tasks_url; Type: TABLE; Schema: mspider; Owner: -
 --
 

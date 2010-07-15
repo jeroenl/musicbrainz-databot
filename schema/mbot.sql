@@ -322,6 +322,16 @@ INHERITS (edits);
 
 
 --
+-- Name: mbmap_artist_equiv; Type: TABLE; Schema: mbot; Owner: -
+--
+
+CREATE TABLE mbmap_artist_equiv (
+    artist character(36) NOT NULL,
+    equiv character(36) NOT NULL
+);
+
+
+--
 -- Name: edits_artist_typechange; Type: TABLE; Schema: mbot; Owner: -
 --
 
@@ -333,11 +343,11 @@ INHERITS (edits);
 
 
 --
--- Name: edits_mb_type_from_relations_v; Type: VIEW; Schema: mbot; Owner: -
+-- Name: batch_edits_artist_typechange; Type: VIEW; Schema: mbot; Owner: -
 --
 
-CREATE VIEW edits_mb_type_from_relations_v AS
-    SELECT 'mb_type_from_relations'::character varying(30) AS source, q.gid AS artistgid, sum(q.type) AS newtype FROM (SELECT a.gid, 2 AS type FROM musicbrainz.artist a, musicbrainz.l_artist_artist la, musicbrainz.lt_artist_artist lt WHERE ((((a.type IS NULL) AND (la.link1 = a.id)) AND (la.link_type = lt.id)) AND ((lt.name)::text = ANY (ARRAY['member of band'::text, 'collaboration'::text]))) UNION SELECT a.gid, 1 AS type FROM musicbrainz.artist a, musicbrainz.l_artist_artist la, musicbrainz.lt_artist_artist lt WHERE ((((a.type IS NULL) AND ((la.link0 = a.id) OR (la.link1 = a.id))) AND (la.link_type = lt.id)) AND ((lt.name)::text = ANY (ARRAY['parent'::text, 'sibling'::text, 'married'::text, 'involved with'::text, 'is person'::text])))) q GROUP BY q.gid HAVING (count(*) = 1);
+CREATE VIEW batch_edits_artist_typechange AS
+    SELECT e.id, e.newtype, e.artistgid AS gid FROM edits_artist_typechange e WHERE (e.date_processed IS NULL) ORDER BY e.id LIMIT 50;
 
 
 --
@@ -352,6 +362,30 @@ INHERITS (edits_relationship);
 
 
 --
+-- Name: batch_edits_relationship_track; Type: VIEW; Schema: mbot; Owner: -
+--
+
+CREATE VIEW batch_edits_relationship_track AS
+    SELECT e.id, e.link0gid, e.link0type, e.link1gid, e.link1type, e.linktype, l.linkphrase, l.name AS linkname, e.release, e.source, e.sourceurl FROM edits_relationship_track e, musicbrainz.lt_artist_track l, musicbrainz.track t, musicbrainz.albumjoin aj WHERE ((((((e.linktype = l.id) AND (e.date_processed IS NULL)) AND (e.release = (SELECT min(edits_relationship_track.release) AS min FROM edits_relationship_track WHERE (edits_relationship_track.date_processed IS NULL)))) AND (t.gid = e.link1gid)) AND (aj.album = e.release)) AND (aj.track = t.id)) ORDER BY aj.sequence, e.id;
+
+
+--
+-- Name: edits_mb_type_from_relations_v; Type: VIEW; Schema: mbot; Owner: -
+--
+
+CREATE VIEW edits_mb_type_from_relations_v AS
+    SELECT 'mb_type_from_relations'::character varying(30) AS source, q.gid AS artistgid, sum(q.type) AS newtype FROM (SELECT a.gid, 2 AS type FROM musicbrainz.artist a, musicbrainz.l_artist_artist la, musicbrainz.lt_artist_artist lt WHERE ((((a.type IS NULL) AND (la.link1 = a.id)) AND (la.link_type = lt.id)) AND ((lt.name)::text = ANY (ARRAY['member of band'::text, 'collaboration'::text]))) UNION SELECT a.gid, 1 AS type FROM musicbrainz.artist a, musicbrainz.l_artist_artist la, musicbrainz.lt_artist_artist lt WHERE ((((a.type IS NULL) AND ((la.link0 = a.id) OR (la.link1 = a.id))) AND (la.link_type = lt.id)) AND ((lt.name)::text = ANY (ARRAY['parent'::text, 'sibling'::text, 'married'::text, 'involved with'::text, 'is person'::text])))) q GROUP BY q.gid HAVING (count(*) = 1);
+
+
+--
+-- Name: ltinfo_artist_track; Type: VIEW; Schema: mbot; Owner: -
+--
+
+CREATE VIEW ltinfo_artist_track AS
+    SELECT lt_artist_track.id, replace((lt_artist_track.shortlinkphrase)::text, ' '::text, ''::text) AS shortlinkphrase FROM musicbrainz.lt_artist_track;
+
+
+--
 -- Name: mb_link_type_descs; Type: TABLE; Schema: mbot; Owner: -
 --
 
@@ -360,16 +394,6 @@ CREATE TABLE mb_link_type_descs (
     desc_type integer NOT NULL,
     link0type character varying(10),
     link1type character varying(10)
-);
-
-
---
--- Name: mbmap_artist_equiv; Type: TABLE; Schema: mbot; Owner: -
---
-
-CREATE TABLE mbmap_artist_equiv (
-    artist character(36) NOT NULL,
-    equiv character(36) NOT NULL
 );
 
 

@@ -7,17 +7,6 @@ use WebService::MusicBrainz::Track;
 extends 'MusicBrainz::DataBot::Edit::BaseEditTask';
 
 has '+type' => (default => 'edits_relationship_track');
-has '+query' => 
-	(default => sub { 
-	  	my $self = shift;
-	  	return 'SELECT e.id id, e.link0gid, e.link0type, e.link1gid, e.link1type, e.linktype, 
-				l.linkphrase, l.name linkname, e.release, e.source, e.sourceurl
-			  FROM ' . $self->schema . '.' . $self->type . ' e, musicbrainz.lt_artist_track l, 
-					musicbrainz.track t, musicbrainz.albumjoin aj
-			  WHERE e.linktype = l.id AND date_processed IS NULL
-			  AND release = (SELECT MIN(release) FROM ' . $self->schema . '.' . $self->type . ' WHERE date_processed IS NULL)
-			  AND t.gid = e.link1gid AND aj.album = release AND aj.track = t.id
-			  ORDER BY aj.sequence, e.id'; });
 
 sub run_task {
 	my ($self, $edit) = @_;
@@ -83,21 +72,14 @@ sub run_task {
 	
 	if ($edit->{'source'} eq 'discogs-trackrole') {
 		my $role = $sql->SelectSingleValue(
-			"SELECT txr.role_details
-				FROM discogs.track d_t, discogs.dmap_track, discogs.discogs_release_url rel_url,
-					discogs.tracks_extraartists_roles txr, discogs.dmap_artist,
-					discogs.dmap_role, musicbrainz.lt_artist_track lt
-				WHERE dmap_track.d_track = d_t.track_id
-					AND rel_url.discogs_id = d_t.discogs_id
-					AND txr.track_id = d_t.track_id AND txr.artist_name = dmap_artist.d_artist
-					AND COALESCE(txr.artist_alias, '') = COALESCE(dmap_artist.d_alias, '')
-					AND dmap_role.link_name = lt.name AND dmap_role.role_name = txr.role_name
-					AND dmap_artist.mb_artist = '$edit->{link0gid}'
-					AND dmap_track.mb_track = '$edit->{link1gid}'
-					AND rel_url.url = '$edit->{sourceurl}' 
-					AND lt.id = $edit->{linktype}
-				LIMIT 1"
-			);
+			$self->select_from(
+				['role_details'],
+				'discogs.track_info',
+				{'mb_artist' => $edit->{'link0gid'},
+				 'mb_track'  => $edit->{'link1gid'},
+				 'url'       => $edit->{'sourceurl'},
+				 'link_type' => $edit->{'linktype'}},
+				'LIMIT 1'));
 			
 		if (defined $role) {
 			if ($role =~ /addit/i) {
@@ -194,26 +176,29 @@ sub validate {
 			foreach my $rel (@rels) {
 				my $reltype = $rel->type;
 				$reltype =~ s/'/\\'/g;
-				my $reltypeid;
 				
-				if (defined $rel->direction && $rel->direction eq 'backward') {
-					$reltypeid = $sql->SelectSingleValue("
-						SELECT id FROM musicbrainz.lt_artist_track 
-						WHERE replace(shortlinkphrase, ' ', '')=LOWER('$reltype')");
-				} else {
-					$reltypeid = $sql->SelectSingleValue("
-						SELECT id FROM musicbrainz.lt_artist_track
-						WHERE replace(shortlinkphrase, ' ', '')=LOWER('$reltype')");
-				}
+				my $reltypeid = $sql->SelectSingleValue(
+							$self->select_from(
+								['id'],
+								'mbot.ltinfo_artist_track',
+								{'shortlinkphrase' => lc($reltype)}));
 				
 				return $self->report_failure($edit->{'id'}, "Unknown link type: $reltype") unless defined $reltypeid && $reltypeid;
 				
-				my $rel_is_higher = $sql->SelectSingleValue("
-					SELECT 1 FROM mbot.mb_link_type_descs 
-					WHERE link_type='$reltypeid' AND desc_type = '$edit->{linktype}' LIMIT 1");
-				my $rel_is_lower = $sql->SelectSingleValue("
-					SELECT 1 FROM mbot.mb_link_type_descs 
-					WHERE desc_type='$reltypeid' AND link_type = '$edit->{linktype}' LIMIT 1");
+				my $rel_is_higher = $sql->SelectSingleValue(
+					$self->select_from(
+						['1'],
+						'mbot.mb_link_type_descs',
+						{'link_type' => $reltypeid,
+						 'desc_type' => $edit->{linktype}},
+						'LIMIT 1'));
+				my $rel_is_lower = $sql->SelectSingleValue(
+					$self->select_from(
+						['1'],
+						'mbot.mb_link_type_descs',
+						{'link_type' => $edit->{linktype},
+						 'desc_type' => $reltypeid},
+						'LIMIT 1'));
 				
 				my $relmsg;
 				if ($reltypeid == $edit->{'linktype'}) {
@@ -250,41 +235,23 @@ sub note_text {
 	my $sql = $self->sql;
 	
 	if ($edit->{'source'} eq 'discogs-trackrole') {
-		# Be proud... I worked hard on this query. Maybe if I did not want to do everything so generic,
-		# and save a bit more Discogs-specific info in the table, I would not have to link so many tables...
 		my $d_track = $sql->SelectSingleRowHash(
-			"SELECT d_t.track_id, d_t.title tracktitle, position, artist_name, txr.role_name, 
-					txr.role_details, release.title reltitle, 
-					COALESCE(artist_alias, artist_name) nametext
-				FROM discogs.track d_t, discogs.dmap_track, discogs.discogs_release_url rel_url,
-					discogs.tracks_extraartists_roles txr, discogs.dmap_artist,
-					discogs.dmap_role, musicbrainz.lt_artist_track lt,	discogs.release
-				WHERE dmap_track.d_track = d_t.track_id
-					AND rel_url.discogs_id = d_t.discogs_id AND release.discogs_id = d_t.discogs_id
-					AND txr.track_id = d_t.track_id AND txr.artist_name = dmap_artist.d_artist
-					AND COALESCE(txr.artist_alias, '') = COALESCE(dmap_artist.d_alias, '')
-					AND dmap_role.link_name = lt.name AND dmap_role.role_name = txr.role_name
-					AND dmap_artist.mb_artist = '$edit->{link0gid}'
-					AND dmap_track.mb_track = '$edit->{link1gid}'
-					AND rel_url.url = '$edit->{sourceurl}' 
-					AND lt.id = $edit->{linktype}"
-			);
-
+			$self->select_from(
+				['track_id', 'tracktitle', 'position', 'artist_name', 'role_name',
+				 'role_details', 'reltitle', 'nametext'],
+				'discogs.track_info',
+				{'mb_artist' => $edit->{'link0gid'},
+				 'mb_track'  => $edit->{'link1gid'},
+				 'url'       => $edit->{'sourceurl'},
+				 'link_type' => $edit->{'linktype'}}));
 
 		my $otherartists = $sql->SelectListOfHashes(
-			"SELECT txr.artist_name, artist.name, artist.resolution,
-					COALESCE(txr.artist_alias, '') artist_alias,
-					COALESCE(txr.artist_alias, txr.artist_name) nametext
-				FROM discogs.tracks_extraartists_roles txr, discogs.dmap_artist,
-					discogs.dmap_role, musicbrainz.artist, musicbrainz.lt_artist_track lt
-				WHERE txr.artist_name = dmap_artist.d_artist 
-					AND COALESCE(txr.artist_alias, '') = COALESCE(dmap_artist.d_alias, '')
-					AND dmap_role.link_name = lt.name and dmap_role.role_name = txr.role_name
-					AND artist.gid = dmap_artist.mb_artist
-					AND txr.track_id = '$d_track->{track_id}'
-					AND txr.artist_name <> " . $sql->Quote($d_track->{artist_name}) . "
-					AND lt.id = $edit->{linktype}"
-			);
+			$self->select_from(
+				['artist_name', 'name', 'resolution', 'artist_alias', 'nametext'],
+				'discogs.discogs_credits_for_track',
+				{'track_id'        => $d_track->{'track_id'},
+				 'artist_name <> ' => $d_track->{'artist_name'},
+				 'link_type'       => $edit->{'linktype'}}));
 			
 		my $note = 
 			"Discogs has:\n" .
@@ -296,18 +263,14 @@ sub note_text {
 			$note .= "\nCo-credited with:\n";
 			foreach my $other (@{$otherartists}) {
 				my $listed = $sql->SelectSingleRowHash(
-					"SELECT artist.name, artist.resolution
-						FROM musicbrainz.l_artist_track l, musicbrainz.track,
-							mbot.mbmap_artist_equiv equiv, musicbrainz.artist,
-							discogs.dmap_artist
-						WHERE l.link1 = track.id AND l.link0 = artist.id
-							AND artist.gid = equiv.equiv AND equiv.artist = dmap_artist.mb_artist
-							AND track.gid = '$edit->{link1gid}'
-							AND dmap_artist.d_artist = '$other->{artist_name}'
-							AND COALESCE(dmap_artist.d_alias, '') = '$other->{artist_alias}'
-							AND l.link_type = $edit->{linktype}
-						LIMIT 1"
-				);
+					$self->select_from(
+						['name', 'resolution'],
+						'discogs.mb_track_credits_for_discogs_artist',
+						{'track_gid' => $edit->{'link1gid'},
+						 'link_type' => $edit->{'linktype'},
+						 'd_artist'  => $other->{'artist_name'},
+						 'd_alias'   => $other->{'artist_alias'}},
+						'LIMIT 1'));
 				
 				if ($listed) {
 					$note .= "* $other->{nametext} - is listed, MB artist '$listed->{name}"
@@ -330,7 +293,7 @@ sub note_text {
 	} else {
 		return $self->report_failure($edit->{'id'}, 'Do not know how to create note for source '. $edit->{'source'});
 	}
-}		
+}
 		
 __PACKAGE__->meta->make_immutable;
 no Moose;

@@ -627,6 +627,50 @@ CREATE VIEW discogs_artist_url_v AS
 
 
 --
+-- Name: dmap_artist; Type: TABLE; Schema: discogs; Owner: -
+--
+
+CREATE TABLE dmap_artist (
+    mb_artist character(36) NOT NULL,
+    d_artist text NOT NULL,
+    d_alias text
+);
+
+
+--
+-- Name: dmap_role; Type: TABLE; Schema: discogs; Owner: -
+--
+
+CREATE TABLE dmap_role (
+    role_name text NOT NULL,
+    link_name character varying(50) NOT NULL,
+    role_query tsquery,
+    attr_name character varying(255)
+);
+
+
+--
+-- Name: tracks_extraartists_roles; Type: TABLE; Schema: discogs; Owner: -
+--
+
+CREATE TABLE tracks_extraartists_roles (
+    artist_name text,
+    role_name text,
+    role_details text,
+    track_id uuid NOT NULL,
+    artist_alias text
+);
+
+
+--
+-- Name: discogs_credits_for_track; Type: VIEW; Schema: discogs; Owner: -
+--
+
+CREATE VIEW discogs_credits_for_track AS
+    SELECT txr.artist_name, artist.name, artist.resolution, COALESCE(txr.artist_alias, ''::text) AS artist_alias, COALESCE(txr.artist_alias, txr.artist_name) AS nametext, txr.track_id, lt.id AS link_type FROM tracks_extraartists_roles txr, dmap_artist, dmap_role, musicbrainz.artist, musicbrainz.lt_artist_track lt WHERE (((((txr.artist_name = dmap_artist.d_artist) AND (COALESCE(txr.artist_alias, ''::text) = COALESCE(dmap_artist.d_alias, ''::text))) AND ((dmap_role.link_name)::text = (lt.name)::text)) AND (dmap_role.role_name = txr.role_name)) AND (artist.gid = dmap_artist.mb_artist));
+
+
+--
 -- Name: discogs_label_url; Type: TABLE; Schema: discogs; Owner: -
 --
 
@@ -693,17 +737,6 @@ CREATE VIEW discogs_release_url_v AS
 
 
 --
--- Name: dmap_artist; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE dmap_artist (
-    mb_artist character(36) NOT NULL,
-    d_artist text NOT NULL,
-    d_alias text
-);
-
-
---
 -- Name: dmap_artist_v; Type: VIEW; Schema: discogs; Owner: -
 --
 
@@ -748,18 +781,6 @@ CREATE VIEW dmap_release_v AS
 
 
 --
--- Name: dmap_role; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE dmap_role (
-    role_name text NOT NULL,
-    link_name character varying(50) NOT NULL,
-    role_query tsquery,
-    attr_name character varying(255)
-);
-
-
---
 -- Name: dmap_track; Type: TABLE; Schema: discogs; Owner: -
 --
 
@@ -796,6 +817,14 @@ CREATE TABLE genre (
     parent_genre integer,
     sub_genre integer
 );
+
+
+--
+-- Name: mb_track_credits_for_discogs_artist; Type: VIEW; Schema: discogs; Owner: -
+--
+
+CREATE VIEW mb_track_credits_for_discogs_artist AS
+    SELECT artist.name, artist.resolution, track.gid AS track_gid, dmap_artist.d_artist, COALESCE(dmap_artist.d_alias, ''::text) AS d_alias, l.link_type FROM musicbrainz.l_artist_track l, musicbrainz.track, mbot.mbmap_artist_equiv equiv, musicbrainz.artist, dmap_artist WHERE ((((l.link1 = track.id) AND (l.link0 = artist.id)) AND (artist.gid = equiv.equiv)) AND (equiv.artist = dmap_artist.mb_artist));
 
 
 --
@@ -882,6 +911,14 @@ CREATE TABLE track (
 
 
 --
+-- Name: track_info; Type: VIEW; Schema: discogs; Owner: -
+--
+
+CREATE VIEW track_info AS
+    SELECT d_t.track_id, d_t.title AS tracktitle, d_t."position", txr.artist_name, txr.role_name, txr.role_details, release.title AS reltitle, COALESCE(txr.artist_alias, txr.artist_name) AS nametext, dmap_artist.mb_artist, dmap_track.mb_track, rel_url.url, lt.id AS link_type FROM track d_t, dmap_track, discogs_release_url rel_url, tracks_extraartists_roles txr, dmap_artist, dmap_role, musicbrainz.lt_artist_track lt, release WHERE ((((((((dmap_track.d_track = d_t.track_id) AND (rel_url.discogs_id = d_t.discogs_id)) AND (release.discogs_id = d_t.discogs_id)) AND (txr.track_id = d_t.track_id)) AND (txr.artist_name = dmap_artist.d_artist)) AND (COALESCE(txr.artist_alias, ''::text) = COALESCE(dmap_artist.d_alias, ''::text))) AND ((dmap_role.link_name)::text = (lt.name)::text)) AND (dmap_role.role_name = txr.role_name));
+
+
+--
 -- Name: tracks_artists; Type: TABLE; Schema: discogs; Owner: -
 --
 
@@ -900,19 +937,6 @@ CREATE TABLE tracks_artists_joins (
     artist2 text,
     join_relation text,
     track_id uuid NOT NULL
-);
-
-
---
--- Name: tracks_extraartists_roles; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE tracks_extraartists_roles (
-    artist_name text,
-    role_name text,
-    role_details text,
-    track_id uuid NOT NULL,
-    artist_alias text
 );
 
 

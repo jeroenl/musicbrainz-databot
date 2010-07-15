@@ -9,14 +9,6 @@ extends 'MusicBrainz::DataBot::Spider::BaseSpiderTask';
 
 has 'discogs' => (is => 'ro', default => sub { return WWW::Discogs->new(apikey => MusicBrainz::DataBot::BotConfig->DISCOGS_APIKEY); } );
 has '+type' => (default => 'tasks_discogs_release');
-has '+query' => 
-	(default => sub { 
-	  	my $self = shift;
-	  	return 'SELECT e.id, e.discogs_id
-			  FROM ' . $self->schema . '.' . $self->type . ' e
-			  WHERE date_processed IS NULL
-			  ORDER BY e.id ASC
-			  LIMIT 50'; });
 		  
 sub run_task {
 	my ($self, $task) = @_;
@@ -211,7 +203,7 @@ sub run_task {
 					
 					if ($found) {
 						return $self->report_failure($task->{'id'}, "Could not match track range: $trackrange");
-					}					
+					}
 				}
 			} else {
 				$self->debug_role('*', $artist, $role_name, $role_details);

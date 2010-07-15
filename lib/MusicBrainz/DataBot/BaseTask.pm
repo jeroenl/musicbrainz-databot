@@ -15,11 +15,18 @@ has 'bot' => (is => 'rw', required => 1);
 has 'sql' => (is => 'rw', required => 1);
 
 has 'uuidgen' => (is => 'ro', lazy => 1, default => sub { return OSSP::uuid->new; } );
+has 'query' => (is => 'ro', required => 1, 
+		lazy => 1, default => sub { 
+			my $self = shift;
+			
+			my $schema = $self->schema;
+			my $type = $self->type;
+			
+			return "SELECT * FROM $schema.batch_$type"; });
+
 
 ### To be defined by children
 has 'type' => (is => 'ro', required => 1);
-has 'query' => (is => 'ro', required => 1, 
-		lazy => 1, default => sub { croak 'Not defined' });
 has 'schema' => (is => 'ro', required => 1);
 
 sub run_task
@@ -165,6 +172,24 @@ sub utf8_encode_array {
 	}
 	
 	return \@array;
+}
+
+# Build simple SELECT query
+sub select_from {
+	my ($self, $columns, $table, $params, $closing) = @_;
+	my $sql = $self->sql;
+	
+	my $columntext = @{$columns} ? join(', ', @{$columns}) : '*';
+	
+	my @criteria;
+	foreach my $key (keys(%{$params})) {
+		push @criteria, $key . (($key =~ / /) ? '' : ' = ') . $sql->Quote($params->{$key});
+	}
+	my $criteriatext = @criteria ? 'WHERE ' . join(' AND ', @criteria) : '';
+	
+	$closing = '' unless defined $closing;
+	
+	return "SELECT $columntext FROM $table $criteriatext $closing";
 }
 
 __PACKAGE__->meta->make_immutable;

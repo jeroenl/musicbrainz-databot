@@ -883,6 +883,26 @@ CREATE TABLE artist (
 
 
 --
+-- Name: lt_artist_track; Type: TABLE; Schema: musicbrainz; Owner: -
+--
+
+CREATE TABLE lt_artist_track (
+    id integer NOT NULL,
+    parent integer NOT NULL,
+    childorder integer DEFAULT 0 NOT NULL,
+    mbid character(36) NOT NULL,
+    name character varying(255) NOT NULL,
+    description text NOT NULL,
+    linkphrase character varying(255) NOT NULL,
+    rlinkphrase character varying(255) NOT NULL,
+    attribute character varying(255) DEFAULT ''::character varying,
+    modpending integer DEFAULT 0 NOT NULL,
+    shortlinkphrase character varying(255) DEFAULT ''::character varying NOT NULL,
+    priority integer DEFAULT 0 NOT NULL
+);
+
+
+--
 -- Name: l_artist_url; Type: TABLE; Schema: musicbrainz; Owner: -
 --
 
@@ -1078,6 +1098,49 @@ CREATE TABLE lt_artist_artist (
 
 
 --
+-- Name: l_artist_track; Type: TABLE; Schema: musicbrainz; Owner: -
+--
+
+CREATE TABLE l_artist_track (
+    id integer NOT NULL,
+    link0 integer DEFAULT 0 NOT NULL,
+    link1 integer DEFAULT 0 NOT NULL,
+    link_type integer DEFAULT 0 NOT NULL,
+    begindate character(10) DEFAULT NULL::bpchar,
+    enddate character(10) DEFAULT NULL::bpchar,
+    modpending integer DEFAULT 0 NOT NULL
+);
+
+
+--
+-- Name: track; Type: TABLE; Schema: musicbrainz; Owner: -
+--
+
+CREATE TABLE track (
+    id integer NOT NULL,
+    artist integer NOT NULL,
+    name text NOT NULL,
+    gid character(36) NOT NULL,
+    length integer DEFAULT 0,
+    year integer DEFAULT 0,
+    modpending integer DEFAULT 0
+);
+
+
+--
+-- Name: albumjoin; Type: TABLE; Schema: musicbrainz; Owner: -
+--
+
+CREATE TABLE albumjoin (
+    id integer NOT NULL,
+    album integer NOT NULL,
+    track integer NOT NULL,
+    sequence integer NOT NULL,
+    modpending integer DEFAULT 0
+);
+
+
+--
 -- Name: Pending; Type: TABLE; Schema: musicbrainz; Owner: -
 --
 
@@ -1179,19 +1242,6 @@ CREATE SEQUENCE album_id_seq
 --
 
 ALTER SEQUENCE album_id_seq OWNED BY album.id;
-
-
---
--- Name: albumjoin; Type: TABLE; Schema: musicbrainz; Owner: -
---
-
-CREATE TABLE albumjoin (
-    id integer NOT NULL,
-    album integer NOT NULL,
-    track integer NOT NULL,
-    sequence integer NOT NULL,
-    modpending integer DEFAULT 0
-);
 
 
 --
@@ -1904,21 +1954,6 @@ ALTER SEQUENCE l_artist_label_id_seq OWNED BY l_artist_label.id;
 
 
 --
--- Name: l_artist_track; Type: TABLE; Schema: musicbrainz; Owner: -
---
-
-CREATE TABLE l_artist_track (
-    id integer NOT NULL,
-    link0 integer DEFAULT 0 NOT NULL,
-    link1 integer DEFAULT 0 NOT NULL,
-    link_type integer DEFAULT 0 NOT NULL,
-    begindate character(10) DEFAULT NULL::bpchar,
-    enddate character(10) DEFAULT NULL::bpchar,
-    modpending integer DEFAULT 0 NOT NULL
-);
-
-
---
 -- Name: l_artist_track_id_seq; Type: SEQUENCE; Schema: musicbrainz; Owner: -
 --
 
@@ -2559,26 +2594,6 @@ CREATE SEQUENCE lt_artist_label_id_seq
 --
 
 ALTER SEQUENCE lt_artist_label_id_seq OWNED BY lt_artist_label.id;
-
-
---
--- Name: lt_artist_track; Type: TABLE; Schema: musicbrainz; Owner: -
---
-
-CREATE TABLE lt_artist_track (
-    id integer NOT NULL,
-    parent integer NOT NULL,
-    childorder integer DEFAULT 0 NOT NULL,
-    mbid character(36) NOT NULL,
-    name character varying(255) NOT NULL,
-    description text NOT NULL,
-    linkphrase character varying(255) NOT NULL,
-    rlinkphrase character varying(255) NOT NULL,
-    attribute character varying(255) DEFAULT ''::character varying,
-    modpending integer DEFAULT 0 NOT NULL,
-    shortlinkphrase character varying(255) DEFAULT ''::character varying NOT NULL,
-    priority integer DEFAULT 0 NOT NULL
-);
 
 
 --
@@ -3499,21 +3514,6 @@ CREATE TABLE tag_relation (
     tag2 integer NOT NULL,
     weight integer NOT NULL,
     CONSTRAINT tag_relation_check CHECK ((tag1 < tag2))
-);
-
-
---
--- Name: track; Type: TABLE; Schema: musicbrainz; Owner: -
---
-
-CREATE TABLE track (
-    id integer NOT NULL,
-    artist integer NOT NULL,
-    name text NOT NULL,
-    gid character(36) NOT NULL,
-    length integer DEFAULT 0,
-    year integer DEFAULT 0,
-    modpending integer DEFAULT 0
 );
 
 
