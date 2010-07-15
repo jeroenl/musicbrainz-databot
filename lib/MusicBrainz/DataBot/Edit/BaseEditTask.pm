@@ -150,4 +150,7 @@ sub _editcount_on_url {
 	return $1;
 }
 
+__PACKAGE__->meta->make_immutable;
+no Moose;
+
 1;

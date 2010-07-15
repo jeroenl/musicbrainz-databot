@@ -246,4 +246,7 @@ sub debug_role {
 	return $self->debug("$pos $name: $role_name");
 }
 
+__PACKAGE__->meta->make_immutable;
+no Moose;
+
 1;

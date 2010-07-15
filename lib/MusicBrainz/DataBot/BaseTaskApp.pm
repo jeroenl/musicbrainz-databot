@@ -109,4 +109,7 @@ sub error { my ($self, $message) = @_; return MusicBrainz::DataBot::Log->error($
 # Throttle
 sub throttle { my ($self, $area) = @_; return MusicBrainz::DataBot::Throttle->throttle($area); }
 
+__PACKAGE__->meta->make_immutable;
+no Moose;
+
 1;

@@ -189,5 +189,7 @@ sub note_text {
 	return $self->report_failure($edit->{'id'}, 'Do not know how to create note for source '. $edit->{'source'});
 }		
 		
+__PACKAGE__->meta->make_immutable;
+no Moose;
 
 1;
