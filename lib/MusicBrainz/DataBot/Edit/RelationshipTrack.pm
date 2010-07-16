@@ -186,14 +186,18 @@ sub validate {
 						['1'],
 						'mbot.mb_link_type_descs',
 						{'link_type' => $reltypeid,
-						 'desc_type' => $edit->{linktype}},
+						 'desc_type' => $edit->{'linktype'},
+						 'link0type' => $edit->{'link0type'},
+						 'link1type' => $edit->{'link1type'}},
 						'LIMIT 1'));
 				my $rel_is_lower = $sql->SelectSingleValue(
 					$self->select_from(
 						['1'],
 						'mbot.mb_link_type_descs',
-						{'link_type' => $edit->{linktype},
-						 'desc_type' => $reltypeid},
+						{'link_type' => $edit->{'linktype'},
+						 'desc_type' => $reltypeid,
+						 'link0type' => $edit->{'link0type'},
+						 'link1type' => $edit->{'link1type'}},
 						'LIMIT 1'));
 				
 				my $relmsg;
