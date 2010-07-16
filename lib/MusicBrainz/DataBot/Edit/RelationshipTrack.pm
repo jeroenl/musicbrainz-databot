@@ -212,7 +212,7 @@ sub validate {
 							 'track'    => $edit->{'link1gid'},
 							 'linktype' => $reltypeid}));
 							 
-					next if ($link_is_planned);
+					next if $link_is_planned;
 					
 					$relmsg = ', existing type is more ' . ($rel_is_higher ? 'general.' : 'specific.');
 				} else {
@@ -226,6 +226,16 @@ sub validate {
 
 				foreach my $equiv (@{$artist_equiv}) {
 					if ($rel->target eq $equiv) {
+						my $link_is_planned = $sql->SelectSingleValue(
+							$self->select_from(
+								['1',],
+								'discogs.edits_artist_track',
+								{'artist'   => $rel->target,
+								 'track'    => $edit->{'link1gid'},
+								 'linktype' => $reltypeid}));
+								 
+						next if $link_is_planned;
+						
 						return $self->report_failure($edit->{'id'}, 'Link exists (equiv) with track' . $relmsg);
 					}
 				}
