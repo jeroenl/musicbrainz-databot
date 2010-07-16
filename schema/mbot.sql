@@ -322,6 +322,17 @@ INHERITS (edits);
 
 
 --
+-- Name: edits_relationship_track; Type: TABLE; Schema: mbot; Owner: -
+--
+
+CREATE TABLE edits_relationship_track (
+    release integer NOT NULL,
+    sourceurl character varying(100)
+)
+INHERITS (edits_relationship);
+
+
+--
 -- Name: mbmap_artist_equiv; Type: TABLE; Schema: mbot; Owner: -
 --
 
@@ -348,17 +359,6 @@ INHERITS (edits);
 
 CREATE VIEW batch_edits_artist_typechange AS
     SELECT e.id, e.newtype, e.artistgid AS gid FROM edits_artist_typechange e WHERE (e.date_processed IS NULL) ORDER BY e.id LIMIT 50;
-
-
---
--- Name: edits_relationship_track; Type: TABLE; Schema: mbot; Owner: -
---
-
-CREATE TABLE edits_relationship_track (
-    release integer NOT NULL,
-    sourceurl character varying(100)
-)
-INHERITS (edits_relationship);
 
 
 --

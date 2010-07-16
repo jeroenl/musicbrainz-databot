@@ -358,8 +358,7 @@ musicbrainz.artist a1, musicbrainz.artist a2, mbot.mbmap_artist_equiv equiv
 where
 a1.id = mb_artist
 and a1.gid = equiv.artist and a2.gid = equiv.equiv
-and lat.link0 = a2.id and lat.link1 = mb_track and lat.link_type in ((select desc_type 
-	from mbot.mb_link_type_descs linkmap where linkmap.link_type = tar.link_type) union (select tar.link_type)));
+and lat.link0 = a2.id and lat.link1 = mb_track and lat.link_type = tar.link_type);
 
 drop table discogs.tmp_discogs_trackrole_step_04_allartists;
 
@@ -788,6 +787,14 @@ CREATE TABLE dmap_track (
     mb_track character(36) NOT NULL,
     d_track uuid NOT NULL
 );
+
+
+--
+-- Name: edits_artist_track; Type: VIEW; Schema: discogs; Owner: -
+--
+
+CREATE VIEW edits_artist_track AS
+    SELECT edits_relationship_track.link0gid AS artist, edits_relationship_track.link1gid AS track, edits_relationship_track.linktype FROM mbot.edits_relationship_track WHERE ((((edits_relationship_track.link0type)::text = 'artist'::text) AND ((edits_relationship_track.link1type)::text = 'track'::text)) AND ((edits_relationship_track.source)::text ~~ '%discogs%'::text));
 
 
 --

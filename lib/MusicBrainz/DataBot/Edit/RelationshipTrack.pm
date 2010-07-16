@@ -199,10 +199,18 @@ sub validate {
 				my $relmsg;
 				if ($reltypeid == $edit->{'linktype'}) {
 					$relmsg = '.';
-				} elsif ($rel_is_higher) {
-					$relmsg = ', existing type is more general.';
-				} elsif ($rel_is_lower) {
-					$relmsg = ', existing type is more specific.'; 
+				} elsif ($rel_is_higher || $rel_is_lower) {
+					my $link_is_planned = $sql->SelectSingleValue(
+						$self->select_from(
+							['1',],
+							'discogs.edits_artist_track',
+							{'artist'   => $rel->target,
+							 'track'    => $edit->{'link1gid'},
+							 'linktype' => $reltypeid}));
+							 
+					next if ($link_is_planned);
+					
+					$relmsg = ', existing type is more ' . ($rel_is_higher ? 'general.' : 'specific.');
 				} else {
 					next;
 				}
