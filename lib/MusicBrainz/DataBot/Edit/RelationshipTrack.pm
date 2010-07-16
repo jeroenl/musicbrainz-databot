@@ -16,15 +16,11 @@ sub run_task {
 	$self->debug("Processing edit $edit->{id}");
 	
 	my $note = $self->note_text($edit);
+	return unless $note;
+	
 	$self->debug("Note:\n" . $note);
 	
-	if (!defined $note) {
-		return;
-	}
-	
-	unless ($self->validate($edit)) {
-		return;
-	}
+	return unless $self->validate($edit);
 	
 	$edit->{'trackid'} = $self->_find_official_id($edit->{'link1type'}, $edit->{'link1gid'});
 	
@@ -244,6 +240,8 @@ sub note_text {
 				 'mb_track'  => $edit->{'link1gid'},
 				 'url'       => $edit->{'sourceurl'},
 				 'link_type' => $edit->{'linktype'}}));
+				 
+		return $self->report_failure($edit->{'id'}, 'Could not retrieve track info for edit note') unless defined $d_track;
 
 		my $otherartists = $sql->SelectListOfHashes(
 			$self->select_from(
