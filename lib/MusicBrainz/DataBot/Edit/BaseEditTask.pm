@@ -133,7 +133,10 @@ sub _editcount_on_url {
 	$self->throttle('mbsite');
 	eval { 
 		$bot->get($url);
-	} or do { return 1000000; };
+	} or do {
+		$self->error("Could not retrieve edit count: $@");
+		return 1000000;
+	};
 	
 	$self->check_login;
 	my $content = $bot->content;
