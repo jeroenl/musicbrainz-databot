@@ -480,7 +480,8 @@ AND mb_artist !=
 			levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), name, 1, 10, 10),
 			(select 
 				min(levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), alias.name, 1, 10, 10))
-			 from musicbrainz.artistalias alias where alias.id = artist.id))
+			 from musicbrainz.artistalias alias where alias.ref = artist.id)),
+			 levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), name, 1, 10, 10)
 	 asc limit 1);
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='upd_dmap_artist';
