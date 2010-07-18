@@ -261,7 +261,8 @@ sub note_text {
 				{'mb_artist' => $edit->{'link0gid'},
 				 'mb_track'  => $edit->{'link1gid'},
 				 'url'       => $edit->{'sourceurl'},
-				 'link_type' => $edit->{'linktype'}}));
+				 'link_type' => $edit->{'linktype'}},
+				'LIMIT 1'));
 				 
 		return $self->report_failure($edit->{'id'}, 'Could not retrieve track info for edit note') unless defined $d_track;
 
