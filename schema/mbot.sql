@@ -146,7 +146,7 @@ from musicbrainz.artist a1, musicbrainz.artist a2,
 musicbrainz.l_artist_artist laa, musicbrainz.lt_artist_artist lt
 where
 laa.link0 = a1.id and laa.link1 = a2.id
-and laa.link_type = lt.id and lt.name in ('member of band', 'is person');
+and laa.link_type = lt.id and lt.name in ('member of band', 'is person', 'collaboration');
 
 SELECT INTO rec COUNT(*) count FROM mbot.mbmap_artist_equiv;
 lastcount := -1;
@@ -162,7 +162,7 @@ WHILE lastcount < rec.count LOOP
 	where
 	a1.gid = map.equiv and
 	laa.link0 = a1.id and laa.link1 = a2.id
-	and laa.link_type = lt.id and lt.name in ('member of band', 'is person')
+	and laa.link_type = lt.id and lt.name in ('member of band', 'is person', 'collaboration')
 	and not exists
 	(select 1 from mbot.mbmap_artist_equiv map2 where map2.artist = map.artist and map2.equiv = a2.gid);
 
