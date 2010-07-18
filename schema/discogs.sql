@@ -475,7 +475,7 @@ WHERE EXISTS (select 1 FROM discogs.dmap_artist map_in
 AND mb_artist != 
 	(select mb_artist from discogs.dmap_artist map_in, musicbrainz.artist 
 		where gid=map_in.mb_artist and map_in.d_artist=map_out.d_artist 
-		and map_in.d_alias=map_out.d_alias 
+		and COALESCE(map_in.d_alias,'')=COALESCE(map_out.d_alias ,'') 
 		order by least(
 			levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), name, 1, 10, 10),
 			(select 
