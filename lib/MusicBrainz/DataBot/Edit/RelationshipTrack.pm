@@ -256,7 +256,7 @@ sub note_text {
 		my $d_track = $sql->SelectSingleRowHash(
 			$self->select_from(
 				['track_id', 'tracktitle', 'position', 'artist_name', 'role_name',
-				 'role_details', 'reltitle', 'nametext'],
+				 'role_details', 'reltitle', 'nametext', 'discogs_id'],
 				'discogs.track_info',
 				{'mb_artist' => $edit->{'link0gid'},
 				 'mb_track'  => $edit->{'link1gid'},
@@ -265,6 +265,16 @@ sub note_text {
 				'LIMIT 1'));
 				 
 		return $self->report_failure($edit->{'id'}, 'Could not retrieve track info for edit note') unless defined $d_track;
+		
+		my $is_albumedit = $sql->SelectSingleValue(
+			$self->select_from(
+				['1'],
+				'discogs.releases_extraartists_roles',
+				{'discogs_id'   => $d_track->{'discogs_id'},
+				 'artist_name'  => $d_track->{'artist_name'},
+				 'role_name'    => $d_track->{'role_name'},
+				 'role_details' => $d_track->{'role_details'}},
+				'LIMIT 1'));
 
 		my $otherartists = $sql->SelectListOfHashes(
 			$self->select_from(
@@ -274,10 +284,12 @@ sub note_text {
 				 'artist_name <> ' => $d_track->{'artist_name'},
 				 'link_type'       => $edit->{'linktype'}}));
 			
-		my $note = 
-			"Discogs has:\n" .
-			($d_track->{'position'} ? $d_track->{'position'} . '. ' : '') . $d_track->{tracktitle}
-				. " - $d_track->{role_name}" . ($d_track->{'role_details'} ? " ($d_track->{role_details})" : '') 
+		my $roletext = "$d_track->{role_name}" . ($d_track->{'role_details'} ? " ($d_track->{role_details})" : '');
+		my $tracktext = ($d_track->{'position'} ? $d_track->{'position'} . '. ' : '') . $d_track->{'tracktitle'};
+		
+		my $note = "Discogs has:\n" .
+				($is_albumedit ? "''Album''" : $tracktext)
+				. " - $roletext" 
 				. ": $d_track->{nametext}\n";
 			
 		if (@{$otherartists}) {
@@ -308,7 +320,8 @@ sub note_text {
 
 		$note .= "References:\n"
 			. "* MusicBrainz - $mbrel->{name}: http://musicbrainz.org/release/$mbrel->{gid}.html\n"
-			. "* Discogs - $d_track->{reltitle}: $edit->{sourceurl}\n";
+			. "* Discogs - $d_track->{reltitle}: $edit->{sourceurl}\n"
+			. ($is_albumedit ? "* This track matched to: $tracktext" : '') . "\n";
 
 		return $note;
 	} else {

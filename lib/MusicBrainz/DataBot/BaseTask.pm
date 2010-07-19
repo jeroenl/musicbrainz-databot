@@ -183,7 +183,8 @@ sub select_from {
 	
 	my @criteria;
 	foreach my $key (keys(%{$params})) {
-		push @criteria, $key . (($key =~ / /) ? '' : ' = ') . $sql->Quote($params->{$key});
+		push @criteria, $key . (($key =~ / /) ? '' :
+					(!defined $params->{$key} ? ' IS ' : ' = ')) . $sql->Quote($params->{$key});
 	}
 	my $criteriatext = @criteria ? 'WHERE ' . join(' AND ', @criteria) : '';
 	
