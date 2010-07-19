@@ -167,7 +167,7 @@ sub run_task {
 					my $first = $trackrange;
 					my $last;
 					
-					if ($trackrange =~ /(.*) to (.*)/) {
+					if ($trackrange =~ /(.*) to (.*)/ || $trackrange =~ /(.*) - (.*)/) {
 						$first = $1;
 						$last = $2;
 					}
@@ -196,12 +196,12 @@ sub run_task {
 						}
 						
 						if ($found && (!defined $last || $positions[$i] eq $last)) {
-							$found = 0;
+							$found = 2;
 							last;
 						}
 					}
 					
-					if ($found) {
+					if ($found != 2) {
 						return $self->report_failure($task->{'id'}, "Could not match track range: $trackrange");
 					}
 				}
