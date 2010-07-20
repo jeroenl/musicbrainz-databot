@@ -1,0 +1,71 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings;
+
+use lib "$ENV{HOME}/mb/bot/lib";
+use lib "$ENV{HOME}/mb/server/cgi-bin";
+
+use WWW::Mechanize;
+
+use MusicBrainz::DataBot::Log;
+use MusicBrainz::DataBot::BotConfig;
+use MusicBrainz;
+use Sql;
+
+die('Configure edit query first');
+
+my $bot = WWW::Mechanize->new;
+my $mbc = MusicBrainz->new; 
+$mbc->Login();
+
+my $sql = Sql->new($mbc->{DBH});
+
+$bot->get('http://musicbrainz.org/login.html');
+
+my $mb_user = &MusicBrainz::DataBot::BotConfig::MB_USER;
+my $mb_password = &MusicBrainz::DataBot::BotConfig::MB_PASSWORD;
+	
+info('Logging in...');
+$bot->submit_form('form_id'=>'LoginForm', fields=>{'user'=>$mb_user, 'password'=>$mb_password});
+
+while (1) {
+	eval {
+		info('Checking edit list');
+		$bot->get('http://musicbrainz.org/mod/search/results.html?minid=12884373&mod_status=1&artist_type=0&moderator_type=3&moderator_id=506697&automod=&voter_id=11780&maxid=&orderby=asc&isreset=0&voter_type=0');
+	
+		my @edits = $bot->find_all_links(text => 'Cancel edit');
+	
+		last unless (@edits);
+
+		foreach my $edit (@edits) {
+			unless ($edit->url =~ /editid=([0-9]+)/) {
+				error('Could not extract edit ID: ' . $edit->url);
+			}
+	
+			my $editid = $1;
+			info("Cancelling edit $editid");
+			$bot->get("http://musicbrainz.org/mod/remove.html?editid=$editid&url=%2F");
+	
+			$bot->form_id('ConfirmForm');
+			#$bot->set_fields( 'notetext' => 'Cancelling, will re-add/keep at release level.' );
+	
+			my $submitbutton = $bot->current_form()->find_input( '#btnYes', 'submit' );
+			$bot->click_button( 'input' => $submitbutton );
+		}
+		
+		1;
+	} or do {
+		error('Error: ' . $@);
+		sleep(60);
+	}
+}
+
+info('Done!');
+
+# Logging
+sub debug { my ($message) = @_; return MusicBrainz::DataBot::Log->debug($message); }
+sub info  { my ($message) = @_; return MusicBrainz::DataBot::Log->info($message); }
+sub error { my ($message) = @_; return MusicBrainz::DataBot::Log->error($message); }
+
+
