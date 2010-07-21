@@ -8,6 +8,7 @@ use MusicBrainz;
 use Sql;
 
 use MusicBrainz::DataBot::Throttle;
+use MusicBrainz::DataBot::Log;
 
 has 'bot' => (is => 'ro', default => sub { my $m = WWW::Mechanize->new; $m->agent_alias('Windows IE 6'); return $m; } );
 has 'mbc' => (is => 'ro', default => sub { my $mb = MusicBrainz->new; $mb->Login(); return $mb; } );
