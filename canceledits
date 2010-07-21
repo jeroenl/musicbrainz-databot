@@ -20,11 +20,12 @@ my $mbc = MusicBrainz->new;
 $mbc->Login();
 
 my $sql = Sql->new($mbc->{DBH});
+my $config = MusicBrainz::DataBot::BotConfig->new(sql => $sql);
 
 $bot->get('http://musicbrainz.org/login.html');
 
-my $mb_user = &MusicBrainz::DataBot::BotConfig::MB_USER;
-my $mb_password = &MusicBrainz::DataBot::BotConfig::MB_PASSWORD;
+my $mb_user = $config->get_config('mb_user');
+my $mb_password = $config->get_config('mb_password');
 	
 info('Logging in...');
 $bot->submit_form('form_id'=>'LoginForm', fields=>{'user'=>$mb_user, 'password'=>$mb_password});

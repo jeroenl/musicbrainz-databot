@@ -1,13 +1,11 @@
 package MusicBrainz::DataBot::Spider::DiscogsRelease;
 
 use Moose;
-use MusicBrainz::DataBot::BotConfig;
-
 use WWW::Discogs;
 
 extends 'MusicBrainz::DataBot::Spider::BaseSpiderTask';
 
-has 'discogs' => (is => 'ro', default => sub { return WWW::Discogs->new(apikey => MusicBrainz::DataBot::BotConfig->DISCOGS_APIKEY); } );
+has 'discogs' => (is => 'ro', lazy => 1, builder => '_build_discogs');
 has '+type' => (default => 'tasks_discogs_release');
 		  
 sub run_task {
@@ -237,6 +235,14 @@ sub debug_role {
 	}
 	
 	return $self->debug("$pos $name: $role_name");
+}
+
+# Var builders
+sub _build_discogs { 
+	my $self = shift;
+	my $config = $self->config;
+	
+	return WWW::Discogs->new(apikey => $config->get_config('discogs_apikey'));
 }
 
 __PACKAGE__->meta->make_immutable;

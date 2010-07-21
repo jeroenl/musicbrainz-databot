@@ -7,12 +7,14 @@ use WWW::Mechanize;
 use MusicBrainz;
 use Sql;
 
+use MusicBrainz::DataBot::BotConfig;
 use MusicBrainz::DataBot::Throttle;
 use MusicBrainz::DataBot::Log;
 
 has 'bot' => (is => 'ro', default => sub { my $m = WWW::Mechanize->new; $m->agent_alias('Windows IE 6'); return $m; } );
 has 'mbc' => (is => 'ro', default => sub { my $mb = MusicBrainz->new; $mb->Login(); return $mb; } );
 has 'sql' => (is => 'ro', builder => '_build_sql');
+has 'config' => (is => 'ro', lazy => 1, builder => '_build_config');
 has 'runners' => (is => 'ro', isa => 'HashRef', lazy => 1, builder => '_build_runners');
 
 ### To be defined by children
@@ -72,15 +74,9 @@ sub _run {
 
 ### Utilities
 
-# for var 'sql'
-sub _build_sql
-{
-	my $self = shift;
-	my $sql = Sql->new($self->mbc->{DBH});
-	return $sql;
-}
-
-# for var 'runners'
+# Build vars
+sub _build_sql    { my $self = shift; return Sql->new($self->mbc->{DBH}); }
+sub _build_config { my $self = shift; return MusicBrainz::DataBot::BotConfig->new(sql => $self->sql); }
 sub _build_runners
 {
 	my $self = shift;
@@ -91,8 +87,9 @@ sub _build_runners
 	my @modules = $self->runner_class->subclasses;
 	foreach my $module (@modules) {
 		my $runner = Moose::Meta::Class->initialize($module)->new_object
-			(bot => $self->bot,
-			 sql => $self->sql);
+			(bot    => $self->bot,
+			 sql    => $self->sql,
+			 config => $self->config);
 		my $runner_type = $runner->type;
 
 		$runners{$runner_type} = $runner;

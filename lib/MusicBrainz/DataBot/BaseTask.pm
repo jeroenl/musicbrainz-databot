@@ -11,8 +11,9 @@ use feature 'switch';
 use MusicBrainz::DataBot::Throttle;
 
 
-has 'bot' => (is => 'rw', required => 1);
-has 'sql' => (is => 'rw', required => 1);
+has 'bot'    => (is => 'rw', required => 1);
+has 'sql'    => (is => 'rw', required => 1);
+has 'config' => (is => 'rw', required => 1);
 
 has 'uuidgen' => (is => 'ro', lazy => 1, default => sub { return OSSP::uuid->new; } );
 has 'query' => (is => 'ro', required => 1, 

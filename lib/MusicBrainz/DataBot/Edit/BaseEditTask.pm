@@ -2,8 +2,6 @@ package MusicBrainz::DataBot::Edit::BaseEditTask;
 
 use Moose;
 
-use MusicBrainz::DataBot::BotConfig;
-
 extends 'MusicBrainz::DataBot::BaseTask';
 
 has '+schema' => (default => 'mbot');
@@ -32,9 +30,10 @@ sub check_login
 {
 	my ($self) = @_;
 	my $bot = $self->bot;
+	my $config = $self->config;
 	
-	my $mb_user = &MusicBrainz::DataBot::BotConfig::MB_USER;
-	my $mb_password = &MusicBrainz::DataBot::BotConfig::MB_PASSWORD;
+	my $mb_user = $config->get_config('mb_user');
+	my $mb_password = $config->get_config('mb_password');
 	
 	if ($self->has_form_id('LoginForm')) {
 		$self->info('Logging in...');
@@ -116,9 +115,10 @@ END_OF_QUERY
 # Retrieve unreviewed edit count (= open without yes/abstain vote from approver)
 sub openeditcount {
 	my $self = shift;
+	my $config = $self->config;
 	
-	my $botuserid = &MusicBrainz::DataBot::BotConfig::MB_BOTUSERID;
-	my $approverid = &MusicBrainz::DataBot::BotConfig::MB_APPROVERID;
+	my $botuserid = $config->get_config('mb_botuserid');
+	my $approverid = $config->get_config('mb_approverid');
 	
 	my $openedits = $self->_editcount_on_url('http://musicbrainz.org/mod/search/results.html?mod_status=1&automod=&moderator_type=3&voter_type=1&voter_id=' . $approverid . '&vote_cast=-2&vote_cast=0&artist_type=0&orderby=desc&minid=&maxid=&isreset=0&moderator_id=' . $botuserid);
 	$self->info("Bot user has $openedits unreviewed edits.");
