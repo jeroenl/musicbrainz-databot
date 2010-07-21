@@ -208,16 +208,6 @@ sub run_task {
 			} else {
 				$self->debug_role('*', $artist, $role_name, $role_details);
 				
-				foreach my $track_id (@track_ids) {
-					$sql->InsertRow('discogs.tracks_extraartists_roles',
-							{track_id => $track_id,
-							 role_name => $role_name,
-							 role_details => $role_details,
-							 artist_name => $artist->{'name'},
-							 artist_alias => $artist->{'anv'}
-							});
-				}
-				
 				$sql->InsertRow('discogs.releases_extraartists_roles',
 					{discogs_id => $release->{'id'},
 					 role_name => $role_name,
