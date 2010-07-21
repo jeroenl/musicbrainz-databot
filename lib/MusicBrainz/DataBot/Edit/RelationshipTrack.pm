@@ -210,7 +210,8 @@ sub validate {
 							'discogs.edits_artist_track',
 							{'artist'   => $rel->target,
 							 'track'    => $edit->{'link1gid'},
-							 'linktype' => $reltypeid}));
+							 'linktype' => $reltypeid},
+							'LIMIT 1'));
 							 
 					next if $link_is_planned;
 					
@@ -232,7 +233,8 @@ sub validate {
 								'discogs.edits_artist_track',
 								{'artist'   => $rel->target,
 								 'track'    => $edit->{'link1gid'},
-								 'linktype' => $reltypeid}));
+								 'linktype' => $reltypeid},
+								'LIMIT 1'));
 								 
 						next if $link_is_planned;
 						
