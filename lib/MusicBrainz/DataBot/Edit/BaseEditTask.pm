@@ -119,8 +119,9 @@ sub openeditcount {
 	
 	my $botuserid = $config->get_config('mb_botuserid');
 	my $approverid = $config->get_config('mb_approverid');
+	my $minid = $config->get_config('mb_lastapprovededit');
 	
-	my $openedits = $self->_editcount_on_url('http://musicbrainz.org/mod/search/results.html?mod_status=1&automod=&moderator_type=3&voter_type=1&voter_id=' . $approverid . '&vote_cast=-2&vote_cast=0&artist_type=0&orderby=desc&minid=&maxid=&isreset=0&moderator_id=' . $botuserid);
+	my $openedits = $self->_editcount_on_url("http://musicbrainz.org/mod/search/results.html?mod_status=1&automod=&moderator_type=3&voter_type=1&voter_id=$approverid&vote_cast=-2&vote_cast=0&artist_type=0&orderby=desc&minid=$minid&maxid=&isreset=0&moderator_id=$botuserid");
 	$self->info("Bot user has $openedits unreviewed edits.");
 	
 	return $openedits;

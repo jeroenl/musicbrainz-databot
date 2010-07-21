@@ -1,0 +1,28 @@
+#!/usr/bin/perl -w
+
+use strict;
+use warnings;
+
+use lib "$ENV{HOME}/mb/bot/lib";
+use lib "$ENV{HOME}/mb/server/cgi-bin";
+
+use MusicBrainz::DataBot::BotConfig;
+use MusicBrainz;
+use Sql;
+
+my $mbc = MusicBrainz->new; 
+$mbc->Login();
+
+my $sql = Sql->new($mbc->{DBH});
+my $config = MusicBrainz::DataBot::BotConfig->new(sql => $sql);
+
+unless (@ARGV) {
+	print "Syntax: $0 <last checked edit ID>\n";
+	print "\n";
+	print "Current: $0 " . $config->get_config('mb_lastapprovededit') . "\n";
+	exit;
+}
+
+$config->set_config('mb_lastapprovededit', $ARGV[0]);
+print "Last checked edit is now $ARGV[0]\n";
+

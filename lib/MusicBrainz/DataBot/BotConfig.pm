@@ -25,7 +25,8 @@ sub set_config {
 		croak "Config key $key is undefined";
 	}
 	
-	$sql->SelectSingleValue('UPDATE mbot.config SET config_value = ? WHERE config_key = ?', $value, $key);
+	$sql->AutoCommit();
+	$sql->Do('UPDATE mbot.config SET config_value = ? WHERE config_key = ?', $value, $key);
 	
 	return 1;
 }
