@@ -271,13 +271,11 @@ link_type integer not null,
 d_release integer not null,
 d_track uuid not null,
 mb_release integer not null,
-mb_track integer not null,
-releaseeditcount integer not null
+mb_track integer not null
 );
 
 insert into discogs.tmp_discogs_trackrole_step_03_mbtrack
-select tar.mb_artist, tar.link_type, d_t.discogs_id d_release, tar.d_track, aj.album mb_release, mb_t.id mb_track,
-COUNT(1) OVER (PARTITION BY d_t.discogs_id, tar.link_type) as releaseeditcount
+select tar.mb_artist, tar.link_type, d_t.discogs_id d_release, tar.d_track, aj.album mb_release, mb_t.id mb_track
 from discogs.tmp_discogs_trackrole_step_02_id tar, discogs.dmap_track dt, discogs.track d_t,
 musicbrainz.albumjoin aj, musicbrainz.track mb_t
 where
@@ -301,26 +299,34 @@ CREATE FUNCTION tmp_discogs_trackrole_step_04_allartists() RETURNS void
     AS $$
 BEGIN
 
-create table discogs.tmp_discogs_trackrole_step_04_allartists
+CREATE TABLE discogs.tmp_discogs_trackrole_step_04_allartists
 (
-mb_artist integer not null,
-link_type integer not null,
-d_release integer not null,
-mb_release integer not null,
-mb_track integer not null
+	mb_artist INTEGER NOT NULL,
+	link_type INTEGER NOT NULL,
+	d_release INTEGER NOT NULL,
+	mb_release INTEGER NOT NULL,
+	mb_track INTEGER NOT NULL
 );
 
-insert into discogs.tmp_discogs_trackrole_step_04_allartists
-select tar.mb_artist, tar.link_type, tar.d_release, tar.mb_release, tar.mb_track
-from discogs.tmp_discogs_trackrole_step_03_mbtrack tar
-where
-(select count(1) from discogs.track dt, discogs.tracks_extraartists_roles txr, discogs.dmap_role role, 
-musicbrainz.lt_artist_track lt
-where txr.role_name = role.role_name and role.link_name = lt.name 
-and lt.id = tar.link_type and txr.track_id = dt.track_id and dt.discogs_id = tar.d_release) 
-= releaseeditcount;
+INSERT INTO discogs.tmp_discogs_trackrole_step_04_allartists
+SELECT tar.mb_artist, tar.link_type, tar.d_release, tar.mb_release, tar.mb_track
+  FROM discogs.tmp_discogs_trackrole_step_03_mbtrack tar
+  WHERE	NOT EXISTS
+	(SELECT 1 
+	   FROM discogs.track dt, discogs.tracks_extraartists_roles txr,
+		discogs.dmap_role role, musicbrainz.lt_artist_track lt
+	  WHERE dt.discogs_id = tar.d_release
+		AND txr.role_name = role.role_name AND role.link_name = lt.name 
+		AND lt.id = tar.link_type AND txr.track_id = dt.track_id
+		AND NOT EXISTS 
+			(SELECT 1 
+			   FROM discogs.dmap_artist map
+			  WHERE map.d_artist = txr.artist_name 
+				AND COALESCE(map.d_alias, '') = COALESCE(txr.artist_alias, '')
+			)
+	);
 
-drop table discogs.tmp_discogs_trackrole_step_03_mbtrack;
+DROP TABLE discogs.tmp_discogs_trackrole_step_03_mbtrack;
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackrole_step_04_allartists';
 
@@ -484,6 +490,24 @@ AND mb_artist !=
 			 levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), name, 1, 10, 10)
 	 asc limit 1);
 
+TRUNCATE discogs.dmap_artist_collab;
+
+INSERT INTO discogs.dmap_artist_collab (mb_artist, mb_collab)
+SELECT DISTINCT mb_artist, a2.gid FROM discogs.dmap_artist d_a, musicbrainz.artist a, musicbrainz.l_artist_artist l, musicbrainz.lt_artist_artist lt, musicbrainz.artist a2
+WHERE a.gid = d_a.mb_artist AND a.name LIKE '% & %' AND
+a.id = l.link1 AND a2.id = l.link0 AND 
+l.link_type = lt.id AND lt.name = 'collaboration';
+
+INSERT INTO discogs.dmap_artist
+(mb_artist, d_artist, d_alias, mb_original)
+SELECT mb_collab, d_artist, d_alias, c.mb_artist
+FROM discogs.dmap_artist a, discogs.dmap_artist_collab c
+WHERE a.mb_artist = c.mb_artist;
+
+DELETE FROM discogs.dmap_artist a
+USING discogs.dmap_artist_collab c
+WHERE a.mb_artist = c.mb_artist;
+
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='upd_dmap_artist';
 
 $$;
@@ -600,6 +624,24 @@ CREATE TABLE artist (
 
 
 --
+-- Name: dmap_artist_collab; Type: TABLE; Schema: discogs; Owner: -
+--
+
+CREATE TABLE dmap_artist_collab (
+    mb_artist character(36) NOT NULL,
+    mb_collab character(36) NOT NULL
+);
+
+
+--
+-- Name: collab_members; Type: VIEW; Schema: discogs; Owner: -
+--
+
+CREATE VIEW collab_members AS
+    SELECT c.mb_artist, c.mb_collab, a.name FROM dmap_artist_collab c, musicbrainz.artist a WHERE (c.mb_collab = a.gid);
+
+
+--
 -- Name: country; Type: TABLE; Schema: discogs; Owner: -
 --
 
@@ -633,7 +675,8 @@ CREATE VIEW discogs_artist_url_v AS
 CREATE TABLE dmap_artist (
     mb_artist character(36) NOT NULL,
     d_artist text NOT NULL,
-    d_alias text
+    d_alias text,
+    mb_original character(36)
 );
 
 
@@ -923,7 +966,7 @@ CREATE TABLE track (
 --
 
 CREATE VIEW track_info AS
-    SELECT d_t.discogs_id, d_t.track_id, d_t.title AS tracktitle, d_t."position", txr.artist_name, txr.role_name, txr.role_details, release.title AS reltitle, COALESCE(txr.artist_alias, txr.artist_name) AS nametext, dmap_artist.mb_artist, dmap_track.mb_track, rel_url.url, lt.id AS link_type FROM track d_t, dmap_track, discogs_release_url rel_url, tracks_extraartists_roles txr, dmap_artist, dmap_role, musicbrainz.lt_artist_track lt, release WHERE ((((((((dmap_track.d_track = d_t.track_id) AND (rel_url.discogs_id = d_t.discogs_id)) AND (release.discogs_id = d_t.discogs_id)) AND (txr.track_id = d_t.track_id)) AND (txr.artist_name = dmap_artist.d_artist)) AND (COALESCE(txr.artist_alias, ''::text) = COALESCE(dmap_artist.d_alias, ''::text))) AND ((dmap_role.link_name)::text = (lt.name)::text)) AND (dmap_role.role_name = txr.role_name)) ORDER BY txr.role_details NULLS FIRST;
+    SELECT d_t.discogs_id, d_t.track_id, d_t.title AS tracktitle, d_t."position", txr.artist_name, txr.role_name, txr.role_details, release.title AS reltitle, COALESCE(txr.artist_alias, txr.artist_name) AS nametext, dmap_artist.mb_artist, dmap_track.mb_track, rel_url.url, lt.id AS link_type, dmap_artist.mb_original FROM track d_t, dmap_track, discogs_release_url rel_url, tracks_extraartists_roles txr, dmap_artist, dmap_role, musicbrainz.lt_artist_track lt, release WHERE ((((((((dmap_track.d_track = d_t.track_id) AND (rel_url.discogs_id = d_t.discogs_id)) AND (release.discogs_id = d_t.discogs_id)) AND (txr.track_id = d_t.track_id)) AND (txr.artist_name = dmap_artist.d_artist)) AND (COALESCE(txr.artist_alias, ''::text) = COALESCE(dmap_artist.d_alias, ''::text))) AND ((dmap_role.link_name)::text = (lt.name)::text)) AND (dmap_role.role_name = txr.role_name)) ORDER BY txr.role_details NULLS FIRST;
 
 
 --
@@ -986,6 +1029,14 @@ ALTER TABLE ONLY discogs_label_url
 
 ALTER TABLE ONLY discogs_release_url
     ADD CONSTRAINT discogs_release_url_pk PRIMARY KEY (discogs_id);
+
+
+--
+-- Name: dmap_artist_collab_pkey; Type: CONSTRAINT; Schema: discogs; Owner: -
+--
+
+ALTER TABLE ONLY dmap_artist_collab
+    ADD CONSTRAINT dmap_artist_collab_pkey PRIMARY KEY (mb_artist, mb_collab);
 
 
 --
@@ -1079,6 +1130,13 @@ CREATE INDEX discogs_label_url_idx_url ON discogs_label_url USING btree (url);
 --
 
 CREATE INDEX discogs_release_url_idx_url ON discogs_release_url USING btree (url);
+
+
+--
+-- Name: dmap_artist_idx_mb_artist; Type: INDEX; Schema: discogs; Owner: -
+--
+
+CREATE INDEX dmap_artist_idx_mb_artist ON dmap_artist USING btree (mb_artist);
 
 
 --

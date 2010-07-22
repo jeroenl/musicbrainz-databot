@@ -258,7 +258,7 @@ sub note_text {
 		my $d_track = $sql->SelectSingleRowHash(
 			$self->select_from(
 				['track_id', 'tracktitle', 'position', 'artist_name', 'role_name',
-				 'role_details', 'reltitle', 'nametext', 'discogs_id'],
+				 'role_details', 'reltitle', 'nametext', 'discogs_id', 'mb_original'],
 				'discogs.track_info',
 				{'mb_artist' => $edit->{'link0gid'},
 				 'mb_track'  => $edit->{'link1gid'},
@@ -278,9 +278,9 @@ sub note_text {
 				 'role_details' => $d_track->{'role_details'}},
 				'LIMIT 1'));
 
-		my $otherartists = $sql->SelectListOfHashes(
+		my $num_otherartists = $sql->SelectSingleValue(
 			$self->select_from(
-				['artist_name', 'name', 'resolution', 'artist_alias', 'nametext'],
+				['COUNT(DISTINCT artist_name)'],
 				'discogs.discogs_credits_for_track',
 				{'track_id'        => $d_track->{'track_id'},
 				 'artist_name <> ' => $d_track->{'artist_name'},
@@ -292,31 +292,27 @@ sub note_text {
 		my $note = "Discogs has:\n" .
 				($is_albumedit ? "''Album''" : $tracktext)
 				. " - $roletext" 
-				. ": $d_track->{nametext}\n";
+				. ": $d_track->{nametext}"
+				. ($num_otherartists ? " (+ $num_otherartists other" . ($num_otherartists > 1 ? 's' : '') . ')' : '')
+				. "\n\n";
 			
-		if (@{$otherartists}) {
-			$note .= "\nCo-credited with:\n";
-			foreach my $other (@{$otherartists}) {
-				my $listed = $sql->SelectSingleRowHash(
-					$self->select_from(
-						['name', 'resolution'],
-						'discogs.mb_track_credits_for_discogs_artist',
-						{'track_gid' => $edit->{'link1gid'},
-						 'link_type' => $edit->{'linktype'},
-						 'd_artist'  => $other->{'artist_name'},
-						 'd_alias'   => $other->{'artist_alias'}},
-						'LIMIT 1'));
-				
-				if ($listed) {
-					$note .= "* $other->{nametext} - is listed, MB artist '$listed->{name}"
-							. ($listed->{'resolution'} ? " ($listed->{resolution})" : '') . "'\n";
-				} else {
-					$note .= "* $other->{nametext} - new link, MB artist '$other->{name}"
-							. ($other->{'resolution'} ? " ($other->{resolution})" : '') . "'\n";
-				}
-			}
+		if (defined $d_track->{'mb_original'}) {
+			my $collaborators = $sql->SelectSingleColumnArray(
+				$self->select_from(
+					['name'],
+					'discogs.collab_members',
+					{'mb_artist' => $d_track->{'mb_original'}}));
+					
+			my $collab_name = $sql->SelectSingleValue(
+				$self->select_from(
+					['name'],
+					'musicbrainz.artist',
+					{'gid' => $d_track->{'mb_original'}}));
+			
+			$note .= "Artist is a collaboration; creating links to collaborators instead.\n";
+			$note .= "* Collaboration: $collab_name - http://musicbrainz.org/artist/$d_track->{mb_original}.html\n";
+			$note .= "* Collaborators: " . join(', ', @{$collaborators}) . "\n\n";
 		}
-		$note .= "\n";
 		
 		my $mbrel = $sql->SelectSingleRowHash("SELECT gid, name FROM musicbrainz.album WHERE id=$edit->{release}");
 
