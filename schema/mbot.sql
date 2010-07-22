@@ -370,6 +370,16 @@ CREATE VIEW batch_edits_relationship_track AS
 
 
 --
+-- Name: config; Type: TABLE; Schema: mbot; Owner: -
+--
+
+CREATE TABLE config (
+    config_key character varying(20) NOT NULL,
+    config_value character varying(50) NOT NULL
+);
+
+
+--
 -- Name: edits_mb_type_from_relations_v; Type: VIEW; Schema: mbot; Owner: -
 --
 
@@ -415,6 +425,14 @@ CREATE TABLE tasks (
 --
 
 ALTER TABLE edits ALTER COLUMN id SET DEFAULT nextval('edits_id_seq'::regclass);
+
+
+--
+-- Name: config_pkey; Type: CONSTRAINT; Schema: mbot; Owner: -
+--
+
+ALTER TABLE ONLY config
+    ADD CONSTRAINT config_pkey PRIMARY KEY (config_key);
 
 
 --
