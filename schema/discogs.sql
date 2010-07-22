@@ -741,7 +741,7 @@ CREATE VIEW discogs_release_url_v AS
 --
 
 CREATE VIEW dmap_artist_v AS
-    SELECT a.gid AS mb_artist, l.name AS d_artist FROM discogs_artist_url l, musicbrainz.l_artist_url lu, musicbrainz.url u, musicbrainz.artist a, musicbrainz.lt_artist_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND ((u.url)::text = (l.url)::text));
+    SELECT a.gid AS mb_artist, l.name AS d_artist FROM discogs_artist_url l, musicbrainz.l_artist_url lu, musicbrainz.url u, musicbrainz.artist a, musicbrainz.lt_artist_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND ("substring"((u.url)::text, '^[^?]+'::text) = (l.url)::text));
 
 
 --
