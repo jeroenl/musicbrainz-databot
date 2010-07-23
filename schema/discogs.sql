@@ -513,8 +513,8 @@ a.id = l.link1 AND a2.id = l.link0 AND
 l.link_type = lt.id AND lt.name = 'collaboration';
 
 INSERT INTO discogs.dmap_artist
-(mb_artist, d_artist, d_alias)
-SELECT mb_collab, d_artist, d_alias
+(mb_artist, d_artist, d_alias, mb_original)
+SELECT mb_collab, d_artist, d_alias, a.mb_artist
 FROM discogs.dmap_artist a, discogs.dmap_artist_collab c
 WHERE a.mb_artist = c.mb_artist;
 
