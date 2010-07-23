@@ -62,7 +62,8 @@ AND NOT EXISTS
 		AND newedits.link0type = edits.link0type
 		AND newedits.link1type = edits.link1type
 		AND newedits.linktype = edits.linktype
-		AND newedits.source = edits.source);
+		AND newedits.source = edits.source
+		AND newedits.sourceurl = edits.sourceurl);
 
 INSERT INTO mbot.edits_relationship_track 
 (link0gid, link0type, link1gid, link1type, linktype, "release", source, sourceurl)
@@ -74,7 +75,8 @@ WHERE NOT EXISTS
 		AND newedits.link0type = edits.link0type
 		AND newedits.link1type = edits.link1type
 		AND newedits.linktype = edits.linktype
-		AND newedits.source = edits.source);
+		AND newedits.source = edits.source
+		AND newedits.sourceurl = edits.sourceurl);
 
 drop table discogs.tmp_discogs_trackrole_step_06_ready;
 
@@ -467,6 +469,18 @@ INSERT INTO discogs.dmap_artist
 SELECT * FROM discogs.dmap_artist_v;
 
 INSERT INTO discogs.dmap_artist
+(mb_artist, d_artist)
+SELECT a2.gid mb_artist, d_artist
+  FROM discogs.dmap_artist d, musicbrainz.artist a, musicbrainz.artist a2,
+	musicbrainz.l_artist_artist l, musicbrainz.lt_artist_artist lt
+ WHERE d.mb_artist = a.gid AND a.id = l.link1 AND a2.id = l.link0
+	AND l.link_type = lt.id AND lt.name = 'is person'
+	AND NOT EXISTS 
+		(SELECT 1
+		   FROM discogs.dmap_artist d2
+		  WHERE d2.mb_artist = a2.gid AND d2.d_artist = d.d_artist);
+
+INSERT INTO discogs.dmap_artist
 (mb_artist, d_artist, d_alias)
 SELECT DISTINCT dmap.mb_artist, dmap.d_artist, tx.artist_alias
 FROM discogs.dmap_artist_v dmap, discogs.tracks_extraartists_roles tx
@@ -499,8 +513,8 @@ a.id = l.link1 AND a2.id = l.link0 AND
 l.link_type = lt.id AND lt.name = 'collaboration';
 
 INSERT INTO discogs.dmap_artist
-(mb_artist, d_artist, d_alias, mb_original)
-SELECT mb_collab, d_artist, d_alias, c.mb_artist
+(mb_artist, d_artist, d_alias)
+SELECT mb_collab, d_artist, d_alias
 FROM discogs.dmap_artist a, discogs.dmap_artist_collab c
 WHERE a.mb_artist = c.mb_artist;
 
