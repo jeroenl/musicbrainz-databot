@@ -82,6 +82,55 @@ CREATE FUNCTION replseq() RETURNS integer
 
 
 --
+-- Name: upd_mb_attr_type_descs(); Type: FUNCTION; Schema: mbot; Owner: -
+--
+
+CREATE FUNCTION upd_mb_attr_type_descs() RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+	rec RECORD;
+	lastcount int;
+BEGIN
+
+TRUNCATE mbot.mb_attr_type_descs;
+
+INSERT INTO mbot.mb_attr_type_descs 
+(attr_type, desc_type)
+SELECT parent, id 
+  FROM musicbrainz.link_attribute_type
+ WHERE parent != id;
+
+INSERT INTO mbot.mb_attr_type_descs 
+(attr_type, desc_type)
+SELECT desc_type, desc_type 
+  FROM mbot.mb_attr_type_descs;
+
+SELECT INTO rec COUNT(*) count FROM mbot.mb_attr_type_descs;
+lastcount := -1;
+WHILE lastcount < rec.count LOOP
+	lastcount := rec.count;
+	
+	INSERT INTO mbot.mb_attr_type_descs
+	(attr_type, desc_type)
+	SELECT l1.attr_type, l2.desc_type
+	FROM mbot.mb_attr_type_descs l1, mbot.mb_attr_type_descs l2
+	WHERE l1.desc_type = l2.attr_type 
+	AND NOT EXISTS 
+		(SELECT 1 FROM mbot.mb_attr_type_descs l3 
+		  WHERE l3.attr_type = l1.attr_type AND l3.desc_type = l2.desc_type);
+
+	SELECT INTO rec COUNT(*) count FROM mbot.mb_attr_type_descs;
+	RAISE NOTICE 'Last count: %>%', rec.count, lastcount;
+END LOOP;
+
+UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='upd_mb_attr_type_descs';
+
+END;
+$$;
+
+
+--
 -- Name: upd_mb_link_type_descs(); Type: FUNCTION; Schema: mbot; Owner: -
 --
 
@@ -396,6 +445,16 @@ CREATE VIEW ltinfo_artist_track AS
 
 
 --
+-- Name: mb_attr_type_descs; Type: TABLE; Schema: mbot; Owner: -
+--
+
+CREATE TABLE mb_attr_type_descs (
+    attr_type integer NOT NULL,
+    desc_type integer NOT NULL
+);
+
+
+--
 -- Name: mb_link_type_descs; Type: TABLE; Schema: mbot; Owner: -
 --
 
@@ -466,6 +525,13 @@ ALTER TABLE ONLY tasks
 CREATE INDEX edit_relationship_track_idx_release ON edits_relationship_track USING btree (release);
 
 ALTER TABLE edits_relationship_track CLUSTER ON edit_relationship_track_idx_release;
+
+
+--
+-- Name: mb_attr_type_descs_idx_attr_type; Type: INDEX; Schema: mbot; Owner: -
+--
+
+CREATE INDEX mb_attr_type_descs_idx_attr_type ON mb_attr_type_descs USING btree (attr_type);
 
 
 --

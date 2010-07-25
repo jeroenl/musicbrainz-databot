@@ -381,6 +381,164 @@ $$;
 
 
 --
+-- Name: tmp_role_attr(); Type: FUNCTION; Schema: discogs; Owner: -
+--
+
+CREATE FUNCTION tmp_role_attr() RETURNS void
+    LANGUAGE plpgsql
+    AS $$BEGIN
+
+CREATE TABLE discogs.tmp_role_attr
+(
+  role_name text NOT NULL,
+  role_details text,
+  attr_name character varying(255)
+);
+
+INSERT INTO discogs.tmp_role_attr
+(role_name, role_details, attr_name)
+SELECT DISTINCT t.role_name, t.role_details, attr_name
+  FROM discogs.tmp_role_list t, discogs.dmap_role r
+ WHERE t.role_name = r.role_name 
+   AND attr_name IS NOT NULL;
+
+CREATE INDEX tmp_role_attr_idx_role
+  ON discogs.tmp_role_attr
+  USING btree
+  (role_name, role_details NULLS FIRST);
+
+INSERT INTO discogs.tmp_role_attr
+(role_name, role_details, attr_name)
+SELECT DISTINCT t.role_name, t.role_details, r.attr_name
+  FROM discogs.tmp_role_list t, discogs.dmap_role r
+ WHERE to_tsvector('mbot.english_nostop', t.role_details) @@ role_query
+   AND r.attr_name IS NOT NULL
+   AND NOT EXISTS 
+	(SELECT 1 FROM discogs.dmap_role r2
+	  WHERE r2.role_name = t.role_name 
+	    AND r2.attr_name = r.attr_name);
+
+ALTER TABLE discogs.tmp_role_attr CLUSTER ON tmp_role_attr_idx_role;	    
+
+DELETE FROM discogs.tmp_role_attr t
+ USING musicbrainz.link_attribute_type l1
+ WHERE t.attr_name = TRIM(l1.name)
+   AND EXISTS
+	(SELECT 1 
+	   FROM mbot.mb_attr_type_descs tree, 
+		musicbrainz.lt_artist_track l2, discogs.tmp_role_attr t2
+	  WHERE t2.attr_name = TRIM(l2.name) AND t.role_name = t2.role_name 
+	    AND t.attr_name != t2.attr_name
+	    AND COALESCE(t.role_details, '') = COALESCE(t2.role_details, '')
+	    AND tree.attr_type = l1.id AND tree.desc_type = l2.id);
+
+UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_role_attr';
+
+END;$$;
+
+
+--
+-- Name: tmp_role_link(); Type: FUNCTION; Schema: discogs; Owner: -
+--
+
+CREATE FUNCTION tmp_role_link() RETURNS void
+    LANGUAGE plpgsql
+    AS $$BEGIN
+
+CREATE TABLE discogs.tmp_role_link
+(
+  role_name text NOT NULL,
+  role_details text,
+  link_name character varying(50)
+);
+
+INSERT INTO discogs.tmp_role_link
+(role_name, role_details, link_name)
+SELECT DISTINCT t.role_name, t.role_details, link_name
+  FROM discogs.tmp_role_list t, discogs.dmap_role r
+ WHERE t.role_name = r.role_name
+   AND link_name IS NOT NULL;
+
+CREATE INDEX tmp_role_link_idx_role
+  ON discogs.tmp_role_link
+  USING btree
+  (role_name, role_details NULLS FIRST);
+
+INSERT INTO discogs.tmp_role_link
+(role_name, role_details, link_name)
+SELECT DISTINCT t.role_name, t.role_details, r.link_name
+  FROM discogs.tmp_role_link t, discogs.dmap_role r
+ WHERE to_tsvector('mbot.english_nostop', t.role_details) @@ role_query
+   AND r.link_name IS NOT NULL
+   AND NOT EXISTS 
+	(SELECT 1 FROM discogs.dmap_role r2
+	  WHERE r2.role_name = t.role_name 
+	    AND r2.link_name = r.link_name);
+
+ALTER TABLE discogs.tmp_role_link CLUSTER ON tmp_role_link_idx_role;	    
+
+DELETE FROM discogs.tmp_role_link t
+ USING musicbrainz.lt_artist_track l1
+ WHERE t.link_name = l1.name
+   AND EXISTS
+	(SELECT 1 
+	   FROM mbot.mb_link_type_descs tree, 
+		musicbrainz.lt_artist_track l2, discogs.tmp_role_link t2
+	  WHERE t2.link_name = l2.name AND t.role_name = t2.role_name 
+	    AND t.link_name != t2.link_name
+	    AND tree.link0type = 'artist' AND tree.link1type = 'track'
+	    AND COALESCE(t.role_details, '') = COALESCE(t2.role_details, '')
+	    AND tree.link_type = l1.id AND tree.desc_type = l2.id);
+
+DELETE FROM discogs.tmp_role_link t
+ USING musicbrainz.lt_artist_track l1
+ WHERE t.link_name = l1.name
+   AND NOT EXISTS
+	(SELECT 1 
+	   FROM mbot.mb_link_type_descs tree, 
+		musicbrainz.lt_artist_track l2, discogs.tmp_role_link t2
+	  WHERE t2.link_name = l2.name AND t.role_name = t2.role_name 
+	    AND tree.link0type = 'artist' AND tree.link1type = 'track'
+	    AND t2.role_details IS NULL
+	    AND tree.link_type = l2.id AND tree.desc_type = l1.id);
+
+UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_role_link';
+
+END;$$;
+
+
+--
+-- Name: tmp_role_list(); Type: FUNCTION; Schema: discogs; Owner: -
+--
+
+CREATE FUNCTION tmp_role_list() RETURNS void
+    LANGUAGE plpgsql
+    AS $$BEGIN
+
+CREATE TABLE discogs.tmp_role_list
+(
+  role_name text NOT NULL,
+  role_details text
+);
+
+INSERT INTO discogs.tmp_role_list
+SELECT DISTINCT role_name, role_details 
+FROM discogs.tracks_extraartists_roles;
+
+INSERT INTO discogs.tmp_role_list
+SELECT DISTINCT role_name, role_details 
+  FROM discogs.releases_extraartists_roles r
+ WHERE NOT EXISTS
+	(SELECT 1 FROM discogs.tmp_role_list t
+	  WHERE t.role_name = r.role_name 
+	    AND COALESCE(t.role_details,'') = COALESCE(r.role_details,''));
+
+UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_role_list';
+
+END;$$;
+
+
+--
 -- Name: upd_discogs_artist_url(); Type: FUNCTION; Schema: discogs; Owner: -
 --
 
@@ -572,6 +730,38 @@ $$;
 
 
 --
+-- Name: upd_dmap_role_full(); Type: FUNCTION; Schema: discogs; Owner: -
+--
+
+CREATE FUNCTION upd_dmap_role_full() RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+
+BEGIN
+
+TRUNCATE discogs.dmap_role_full;
+
+INSERT INTO discogs.dmap_role_full
+(role_name, role_details, link_name, attr_name)
+SELECT role_name, role_details, link_name,
+	(SELECT ARRAY_AGG(DISTINCT attr_name) 
+	   FROM discogs.tmp_role_attr attr
+	  WHERE link.role_name = attr.role_name
+	    AND COALESCE(link.role_details, '') = COALESCE(attr.role_details, ''))
+  FROM discogs.tmp_role_link link;
+
+DROP TABLE discogs.tmp_role_link;
+DROP TABLE discogs.tmp_role_attr;
+DROP TABLE discogs.tmp_role_list;
+
+UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='upd_dmap_role_full';
+
+END;
+
+$$;
+
+
+--
 -- Name: upd_dmap_track(); Type: FUNCTION; Schema: discogs; Owner: -
 --
 
@@ -704,7 +894,7 @@ CREATE TABLE dmap_artist (
 
 CREATE TABLE dmap_role (
     role_name text NOT NULL,
-    link_name character varying(50) NOT NULL,
+    link_name character varying(50),
     role_query tsquery,
     attr_name character varying(255)
 );
@@ -842,6 +1032,18 @@ CREATE VIEW dmap_release_v AS
 
 
 --
+-- Name: dmap_role_full; Type: TABLE; Schema: discogs; Owner: -
+--
+
+CREATE TABLE dmap_role_full (
+    role_name text NOT NULL,
+    role_details text,
+    link_name character varying(50),
+    attr_name character varying(255)[]
+);
+
+
+--
 -- Name: dmap_track; Type: TABLE; Schema: discogs; Owner: -
 --
 
@@ -951,15 +1153,6 @@ CREATE TABLE releases_labels (
     label text,
     discogs_id integer,
     catno text
-);
-
-
---
--- Name: role; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE role (
-    role_name text
 );
 
 
@@ -1162,6 +1355,15 @@ CREATE INDEX dmap_artist_idx_mb_artist ON dmap_artist USING btree (mb_artist);
 --
 
 CREATE INDEX dmap_artist_mv_dname ON dmap_artist USING btree (d_artist, d_alias);
+
+
+--
+-- Name: dmap_role_full_idx_role; Type: INDEX; Schema: discogs; Owner: -
+--
+
+CREATE INDEX dmap_role_full_idx_role ON dmap_role_full USING btree (role_name, role_details NULLS FIRST);
+
+ALTER TABLE dmap_role_full CLUSTER ON dmap_role_full_idx_role;
 
 
 --
