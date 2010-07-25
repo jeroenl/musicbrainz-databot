@@ -113,12 +113,12 @@ d_track uuid not null,
 d_release integer not null,
 mb_release integer not null,
 title text not null,
-d_length text not null,
+d_length integer,
 dpos integer not null
 );
 
 insert into discogs.tmp_discogs_trackmap_step_01
-select t.track_id d_track, t.discogs_id d_release, a.id mb_release, title, duration d_length, trackseq
+select t.track_id d_track, t.discogs_id d_release, a.id mb_release, title, durationms d_length, trackseq
 from discogs.track t, discogs.dmap_release dr, musicbrainz.album a
 where dr.d_release = t.discogs_id and a.gid = dr.mb_release;
 
@@ -134,7 +134,7 @@ $$;
 
 CREATE FUNCTION tmp_discogs_trackmap_step_02_mbtrack() RETURNS void
     LANGUAGE plpgsql
-    AS $_$
+    AS $$
 BEGIN
 
 create table discogs.tmp_discogs_trackmap_step_02_mbtrack
@@ -148,9 +148,7 @@ mb_length integer not null
 );
 
 insert into discogs.tmp_discogs_trackmap_step_02_mbtrack
-select d_track, title d_title, 
-(CAST(replace(substring(d_length from '^[0-9]+:'), ':', '') AS integer) * 60 +
-CAST(substring(d_length from '[0-9]+$')  AS integer)) d_length, aj.track mb_track, t.name mb_title, (t.length / 1000) mb_length
+select d_track, title d_title, d_length, aj.track mb_track, t.name mb_title, t.length mb_length
 from discogs.tmp_discogs_trackmap_step_01 tmap, musicbrainz.albumjoin aj, musicbrainz.track t
 where
 tmap.mb_release = aj.album and aj."sequence" = dpos and aj.track = t.id;
@@ -160,7 +158,7 @@ drop table discogs.tmp_discogs_trackmap_step_01;
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackmap_step_02_mbtrack';
 
 END;
-$_$;
+$$;
 
 
 --
@@ -191,7 +189,7 @@ regexp_replace(lower(regexp_replace(mb_title, E' \\([^)]+\\)','', 'g')), '[^a-z0
 regexp_replace(lower(mb_title), '[^a-z0-9]', '', 'g')
 from discogs.tmp_discogs_trackmap_step_02_mbtrack tmap
 where
-d_length = 0 or mb_length = 0 or abs(d_length - mb_length) < 10;
+d_length is null or mb_length = 0 or abs(d_length - mb_length) < 15000;
 
 drop table discogs.tmp_discogs_trackmap_step_02_mbtrack;
 
@@ -320,12 +318,18 @@ SELECT tar.mb_artist, tar.link_type, tar.d_release, tar.mb_release, tar.mb_track
 	  WHERE dt.discogs_id = tar.d_release
 		AND txr.role_name = role.role_name AND role.link_name = lt.name 
 		AND lt.id = tar.link_type AND txr.track_id = dt.track_id
-		AND NOT EXISTS 
+		AND (NOT EXISTS 
 			(SELECT 1 
 			   FROM discogs.dmap_artist map
 			  WHERE map.d_artist = txr.artist_name 
 				AND COALESCE(map.d_alias, '') = COALESCE(txr.artist_alias, '')
 			)
+		     OR NOT EXISTS
+			(SELECT 1 
+			   FROM discogs.dmap_track map
+			  WHERE map.d_track = txr.track_id
+			)
+		    )
 	);
 
 DROP TABLE discogs.tmp_discogs_trackrole_step_03_mbtrack;
@@ -586,8 +590,8 @@ tmap.mb_track = t.id AND
 (
 d_title = mb_title OR
 d_title_full = mb_title_full OR
-levenshtein(substring(d_title for 255), mb_title) < 4 OR
-levenshtein(substring(d_title_full for 255), mb_title_full) < 4
+levenshtein(substring(d_title for 255), substring(mb_title for 255)) < 6 OR
+levenshtein(substring(d_title_full for 255), substring(mb_title_full for 255)) < 6
 );
 
 drop table discogs.tmp_discogs_trackmap_step_03_samepos;

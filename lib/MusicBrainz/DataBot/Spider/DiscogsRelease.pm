@@ -110,8 +110,8 @@ sub run_task {
 		$self->debug("$track->{position}. $track->{title}");
 		
 		my $durationms;
-		if ($track->{'duration'} =~ /([0-9]+):([0-9]+)/) {
-			$durationms = ($1 + ($2 * 60)) * 1000;
+		if ($track->{'duration'} =~ /(?:([0-9]+):)?([0-9]+):([0-9]+)/) {
+			$durationms = ((defined $1 ? $1 * 3600 : 0) + ($2 * 60) + $3) * 1000;
 		}
 				
 		$sql->InsertRow('discogs.track',
