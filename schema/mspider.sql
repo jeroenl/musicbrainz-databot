@@ -100,14 +100,6 @@ ALTER TABLE tasks ALTER COLUMN id SET DEFAULT nextval('tasks_id_seq'::regclass);
 
 
 --
--- Name: flies_pkey; Type: CONSTRAINT; Schema: mspider; Owner: -
---
-
-ALTER TABLE ONLY tasks
-    ADD CONSTRAINT flies_pkey PRIMARY KEY (id);
-
-
---
 -- Name: tasks_discogs_release_pkey; Type: CONSTRAINT; Schema: mspider; Owner: -
 --
 
@@ -116,11 +108,26 @@ ALTER TABLE ONLY tasks_discogs_release
 
 
 --
+-- Name: tasks_pkey; Type: CONSTRAINT; Schema: mspider; Owner: -
+--
+
+ALTER TABLE ONLY tasks
+    ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: tasks_url_pkey; Type: CONSTRAINT; Schema: mspider; Owner: -
 --
 
 ALTER TABLE ONLY tasks_url
     ADD CONSTRAINT tasks_url_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tasks_discogs_release_idx_discogs_id; Type: INDEX; Schema: mspider; Owner: -
+--
+
+CREATE INDEX tasks_discogs_release_idx_discogs_id ON tasks_discogs_release USING btree (discogs_id);
 
 
 --

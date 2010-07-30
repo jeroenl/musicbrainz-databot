@@ -495,19 +495,35 @@ ALTER TABLE ONLY config
 
 
 --
--- Name: edits_artist_typechange_pk; Type: CONSTRAINT; Schema: mbot; Owner: -
+-- Name: edits_artist_typechange_pkey; Type: CONSTRAINT; Schema: mbot; Owner: -
 --
 
 ALTER TABLE ONLY edits_artist_typechange
-    ADD CONSTRAINT edits_artist_typechange_pk PRIMARY KEY (id);
+    ADD CONSTRAINT edits_artist_typechange_pkey PRIMARY KEY (id);
 
 
 --
--- Name: edits_pk; Type: CONSTRAINT; Schema: mbot; Owner: -
+-- Name: edits_pkey; Type: CONSTRAINT; Schema: mbot; Owner: -
 --
 
 ALTER TABLE ONLY edits
-    ADD CONSTRAINT edits_pk PRIMARY KEY (id);
+    ADD CONSTRAINT edits_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: edits_relationship_pkey; Type: CONSTRAINT; Schema: mbot; Owner: -
+--
+
+ALTER TABLE ONLY edits_relationship
+    ADD CONSTRAINT edits_relationship_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: edits_relationship_track_pkey; Type: CONSTRAINT; Schema: mbot; Owner: -
+--
+
+ALTER TABLE ONLY edits_relationship_track
+    ADD CONSTRAINT edits_relationship_track_pkey PRIMARY KEY (id);
 
 
 --
