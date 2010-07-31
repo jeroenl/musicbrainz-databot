@@ -97,9 +97,9 @@ TRUNCATE mbot.mb_attr_type_descs;
 
 INSERT INTO mbot.mb_attr_type_descs 
 (attr_type, desc_type)
-SELECT parent, id 
-  FROM musicbrainz.link_attribute_type
- WHERE parent != id;
+SELECT l2.mbid::uuid, l1.mbid::uuid
+  FROM musicbrainz.link_attribute_type l1, musicbrainz.link_attribute_type l2
+ WHERE l1.parent != l1.id AND l1.parent = l2.id;
 
 INSERT INTO mbot.mb_attr_type_descs 
 (attr_type, desc_type)
@@ -142,12 +142,12 @@ DECLARE
 	lastcount int;
 BEGIN
 
-truncate mbot.mb_link_type_descs;
+TRUNCATE mbot.mb_link_type_descs;
 
 FOR rec IN SELECT regexp_matches(table_name, '^lt_(.*)_(.*)$') mtch from information_schema.tables where table_schema = 'musicbrainz' and table_name ~ 'lt_' LOOP
 	EXECUTE 'insert into mbot.mb_link_type_descs (link_type, desc_type, link0type, link1type)
-		select parent, id, ' || quote_literal(rec.mtch[1]) || ', ' || quote_literal(rec.mtch[2]) || ' from musicbrainz.lt_' || rec.mtch[1] || '_' || rec.mtch[2] || '
-		where parent != id';
+		select l2.mbid::uuid, l1.mbid::uuid, ' || quote_literal(rec.mtch[1]) || ', ' || quote_literal(rec.mtch[2]) || ' from musicbrainz.lt_' || rec.mtch[1] || '_' || rec.mtch[2] || ' l1, musicbrainz.lt_' || rec.mtch[1] || '_' || rec.mtch[2] || ' l2
+		where l1.parent != l1.id and l1.parent = l2.id';
 END LOOP;
 
 INSERT INTO mbot.mb_link_type_descs (link_type, desc_type, link0type, link1type)
@@ -363,9 +363,10 @@ ALTER SEQUENCE edits_id_seq OWNED BY edits.id;
 CREATE TABLE edits_relationship (
     link0type character varying(10) NOT NULL,
     link1type character varying(10) NOT NULL,
-    linktype integer NOT NULL,
     link0gid character(36) NOT NULL,
-    link1gid character(36) NOT NULL
+    link1gid character(36) NOT NULL,
+    linkgid uuid,
+    attrgid uuid[]
 )
 INHERITS (edits);
 
@@ -415,7 +416,7 @@ CREATE VIEW batch_edits_artist_typechange AS
 --
 
 CREATE VIEW batch_edits_relationship_track AS
-    SELECT e.id, e.link0gid, e.link0type, e.link1gid, e.link1type, e.linktype, l.linkphrase, l.name AS linkname, e.release, e.source, e.sourceurl FROM edits_relationship_track e, musicbrainz.lt_artist_track l, musicbrainz.track t, musicbrainz.albumjoin aj WHERE ((((((e.linktype = l.id) AND (e.date_processed IS NULL)) AND (e.release = (SELECT min(edits_relationship_track.release) AS min FROM edits_relationship_track WHERE (edits_relationship_track.date_processed IS NULL)))) AND (t.gid = e.link1gid)) AND (aj.album = e.release)) AND (aj.track = t.id)) ORDER BY aj.sequence, e.id;
+    SELECT e.id, e.link0gid, e.link0type, e.link1gid, e.link1type, l.id AS linktype, l.linkphrase, l.name AS linkname, e.release, e.source, e.sourceurl, e.linkgid, e.attrgid FROM edits_relationship_track e, musicbrainz.lt_artist_track l, musicbrainz.track t, musicbrainz.albumjoin aj WHERE ((((((e.linkgid = (l.mbid)::uuid) AND (e.date_processed IS NULL)) AND (e.release = (SELECT min(edits_relationship_track.release) AS min FROM edits_relationship_track WHERE (edits_relationship_track.date_processed IS NULL)))) AND (t.gid = e.link1gid)) AND (aj.album = e.release)) AND (aj.track = t.id)) ORDER BY aj.sequence, e.id;
 
 
 --
@@ -441,7 +442,7 @@ CREATE VIEW edits_mb_type_from_relations_v AS
 --
 
 CREATE VIEW ltinfo_artist_track AS
-    SELECT lt_artist_track.id, replace((lt_artist_track.shortlinkphrase)::text, ' '::text, ''::text) AS shortlinkphrase FROM musicbrainz.lt_artist_track;
+    SELECT (lt_artist_track.mbid)::uuid AS gid, replace((lt_artist_track.shortlinkphrase)::text, ' '::text, ''::text) AS shortlinkphrase FROM musicbrainz.lt_artist_track;
 
 
 --
@@ -449,8 +450,8 @@ CREATE VIEW ltinfo_artist_track AS
 --
 
 CREATE TABLE mb_attr_type_descs (
-    attr_type integer NOT NULL,
-    desc_type integer NOT NULL
+    attr_type uuid NOT NULL,
+    desc_type uuid NOT NULL
 );
 
 
@@ -459,8 +460,8 @@ CREATE TABLE mb_attr_type_descs (
 --
 
 CREATE TABLE mb_link_type_descs (
-    link_type integer NOT NULL,
-    desc_type integer NOT NULL,
+    link_type uuid NOT NULL,
+    desc_type uuid NOT NULL,
     link0type character varying(10),
     link1type character varying(10)
 );

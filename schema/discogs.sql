@@ -27,58 +27,60 @@ CREATE FUNCTION find_edits_discogs_trackrole() RETURNS void
     AS $$
 BEGIN
 
-create table discogs.tmp_discogs_trackrole_step_06_ready
+CREATE TABLE discogs.tmp_discogs_trackrole_step_06_ready
 (
-link0gid char(36) not null,
-link0type varchar (10) not null,
-link1gid char(36) not null,
-link1type varchar (10) not null,
-linktype integer not null,
-"release" integer not null,
-source varchar (30) not null,
-sourceurl varchar(100) not null
+	link0gid char(36) NOT NULL,
+	link0type varchar (10) NOT NULL,
+	link1gid char(36) NOT NULL,
+	link1type varchar (10) NOT NULL,
+	linkgid uuid NOT NULL,
+	attrgid uuid[] NOT NULL,
+	"release" integer NOT NULL,
+	source varchar (30) NOT NULL,
+	sourceurl varchar(100) NOT NULL
 );
 
-insert into discogs.tmp_discogs_trackrole_step_06_ready
-select 
-distinct
-a.gid link0gid, 'artist'::varchar(10),
-t.gid link1gid, 'track'::varchar(10),
-link_type linktype, mb_release, 
-'discogs-trackrole'::varchar(30) source,
-'http://www.discogs.com/release/' || d_release sourceurl
-from discogs.tmp_discogs_trackrole_step_05_new tar,
-musicbrainz.artist a, musicbrainz.track t
-where a.id = mb_artist and t.id = mb_track;
+INSERT INTO discogs.tmp_discogs_trackrole_step_06_ready
+SELECT DISTINCT 
+	a.gid link0gid, 'artist'::varchar(10),
+	t.gid link1gid, 'track'::varchar(10),
+	linkgid, attrgid, mb_release, 
+	'discogs-trackrole'::varchar(30) source,
+	'http://www.discogs.com/release/' || d_release sourceurl
+  FROM discogs.tmp_discogs_trackrole_step_05_new tar,
+	musicbrainz.artist a, musicbrainz.track t
+ WHERE a.id = mb_artist and t.id = mb_track;
 
-drop table discogs.tmp_discogs_trackrole_step_05_new;
+DROP TABLE discogs.tmp_discogs_trackrole_step_05_new;
 
 DELETE FROM mbot.edits_relationship_track edits
-WHERE (error IS NOT NULL OR date_processed IS NULL)
-AND NOT EXISTS 
+ WHERE (error IS NOT NULL OR date_processed IS NULL)
+   AND NOT EXISTS 
 	(SELECT 1 FROM discogs.tmp_discogs_trackrole_step_06_ready newedits
 		WHERE newedits.link0gid = edits.link0gid
 		AND newedits.link1gid = edits.link1gid
 		AND newedits.link0type = edits.link0type
 		AND newedits.link1type = edits.link1type
-		AND newedits.linktype = edits.linktype
+		AND newedits.linkgid = edits.linkgid
+		AND newedits.attrgid = edits.attrgid
 		AND newedits.source = edits.source
 		AND newedits.sourceurl = edits.sourceurl);
 
 INSERT INTO mbot.edits_relationship_track 
-(link0gid, link0type, link1gid, link1type, linktype, "release", source, sourceurl)
+(link0gid, link0type, link1gid, link1type, linkgid, attrgid, "release", source, sourceurl)
 SELECT * FROM discogs.tmp_discogs_trackrole_step_06_ready newedits
-WHERE NOT EXISTS
+ WHERE NOT EXISTS
 	(SELECT 1 FROM mbot.edits_relationship_track edits
 		WHERE newedits.link0gid = edits.link0gid
 		AND newedits.link1gid = edits.link1gid
 		AND newedits.link0type = edits.link0type
 		AND newedits.link1type = edits.link1type
-		AND newedits.linktype = edits.linktype
+		AND newedits.linkgid = edits.linkgid
+		AND newedits.attrgid <@ edits.attrgid
 		AND newedits.source = edits.source
 		AND newedits.sourceurl = edits.sourceurl);
 
-drop table discogs.tmp_discogs_trackrole_step_06_ready;
+DROP TABLE discogs.tmp_discogs_trackrole_step_06_ready;
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='find_edits_discogs_trackrole';
 
@@ -200,56 +202,60 @@ $$;
 
 
 --
--- Name: tmp_discogs_trackrole_step_01(); Type: FUNCTION; Schema: discogs; Owner: -
+-- Name: tmp_discogs_trackrole_step_01_artist(); Type: FUNCTION; Schema: discogs; Owner: -
 --
 
-CREATE FUNCTION tmp_discogs_trackrole_step_01() RETURNS void
+CREATE FUNCTION tmp_discogs_trackrole_step_01_artist() RETURNS void
     LANGUAGE plpgsql
     AS $$
 BEGIN
 
-CREATE TABLE discogs.tmp_discogs_trackrole_step_01
+CREATE TABLE discogs.tmp_discogs_trackrole_step_01_artist
 (
-mb_artist integer NOT NULL,
-role_name TEXT NOT NULL,
-d_track uuid NOT NULL
+	mb_artist integer NOT NULL,
+	role_name text NOT NULL,
+	role_details text,
+	d_track uuid NOT NULL
 );
 
-INSERT INTO discogs.tmp_discogs_trackrole_step_01
-select a.id mb_artist, role_name, track_id
-from discogs.tracks_extraartists_roles x, discogs.dmap_artist da, musicbrainz.artist a
-where artist_name = d_artist and COALESCE(artist_alias,'') = COALESCE(d_alias,'') and gid = mb_artist;
+INSERT INTO discogs.tmp_discogs_trackrole_step_01_artist
+SELECT a.id mb_artist, role_name, role_details, track_id
+  FROM discogs.tracks_extraartists_roles x, discogs.dmap_artist da, musicbrainz.artist a
+ WHERE artist_name = d_artist AND COALESCE(artist_alias,'') = COALESCE(d_alias,'') 
+   AND gid = mb_artist;
 
-UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackrole_step_01';
+UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackrole_step_01_artist';
 
 END;
 $$;
 
 
 --
--- Name: tmp_discogs_trackrole_step_02_id(); Type: FUNCTION; Schema: discogs; Owner: -
+-- Name: tmp_discogs_trackrole_step_02_role(); Type: FUNCTION; Schema: discogs; Owner: -
 --
 
-CREATE FUNCTION tmp_discogs_trackrole_step_02_id() RETURNS void
+CREATE FUNCTION tmp_discogs_trackrole_step_02_role() RETURNS void
     LANGUAGE plpgsql
     AS $$
 BEGIN
 
-create table discogs.tmp_discogs_trackrole_step_02_id
+CREATE TABLE discogs.tmp_discogs_trackrole_step_02_role
 (
-mb_artist integer not null,
-link_type integer not null,
-d_track uuid not null
+	mb_artist integer NOT NULL,
+	linkgid uuid NOT NULL,
+	attrgid uuid[] NOT NULL,
+	d_track uuid NOT NULL
 );
 
-insert into discogs.tmp_discogs_trackrole_step_02_id
-select mb_artist, lt.id link_type, d_track
-from discogs.tmp_discogs_trackrole_step_01 tar, discogs.dmap_role dr, musicbrainz.lt_artist_track lt
-where tar.role_name = dr.role_name and lt.name = dr.link_name;
+INSERT INTO discogs.tmp_discogs_trackrole_step_02_role
+SELECT mb_artist, link_gid, attr_gid, d_track
+  FROM discogs.tmp_discogs_trackrole_step_01_artist tar, discogs.dmap_role_full dr
+ WHERE tar.role_name = dr.role_name 
+   AND COALESCE(tar.role_details, '') = COALESCE(dr.role_details, '');
 
-drop table discogs.tmp_discogs_trackrole_step_01;
+DROP TABLE discogs.tmp_discogs_trackrole_step_01_artist;
 
-UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackrole_step_02_id';
+UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackrole_step_02_role';
 
 END;
 $$;
@@ -264,25 +270,26 @@ CREATE FUNCTION tmp_discogs_trackrole_step_03_mbtrack() RETURNS void
     AS $$
 BEGIN
 
-create table discogs.tmp_discogs_trackrole_step_03_mbtrack
+CREATE TABLE discogs.tmp_discogs_trackrole_step_03_mbtrack
 (
-mb_artist integer not null,
-link_type integer not null,
-d_release integer not null,
-d_track uuid not null,
-mb_release integer not null,
-mb_track integer not null
+	mb_artist integer NOT NULL,
+	linkgid uuid NOT NULL,
+	attrgid uuid[] NOT NULL,
+	d_release integer NOT NULL,
+	d_track uuid NOT NULL,
+	mb_release integer NOT NULL,
+	mb_track integer NOT NULL
 );
 
-insert into discogs.tmp_discogs_trackrole_step_03_mbtrack
-select tar.mb_artist, tar.link_type, d_t.discogs_id d_release, tar.d_track, aj.album mb_release, mb_t.id mb_track
-from discogs.tmp_discogs_trackrole_step_02_id tar, discogs.dmap_track dt, discogs.track d_t,
-musicbrainz.albumjoin aj, musicbrainz.track mb_t
-where
-tar.d_track = dt.d_track and d_t.track_id = tar.d_track
-and aj.track = mb_t.id and mb_t.gid = dt.mb_track;
+INSERT INTO discogs.tmp_discogs_trackrole_step_03_mbtrack
+SELECT tar.mb_artist, tar.linkgid, tar.attrgid, d_t.discogs_id d_release, 
+	tar.d_track, aj.album mb_release, mb_t.id mb_track
+  FROM discogs.tmp_discogs_trackrole_step_02_role tar, discogs.dmap_track dt, discogs.track d_t, 
+	musicbrainz.albumjoin aj, musicbrainz.track mb_t
+ WHERE tar.d_track = dt.d_track AND d_t.track_id = tar.d_track
+   AND aj.track = mb_t.id AND mb_t.gid = dt.mb_track;
 
-drop table discogs.tmp_discogs_trackrole_step_02_id;
+DROP TABLE discogs.tmp_discogs_trackrole_step_02_role;
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackrole_step_03_mbtrack';
 
@@ -301,24 +308,25 @@ BEGIN
 
 CREATE TABLE discogs.tmp_discogs_trackrole_step_04_allartists
 (
-	mb_artist INTEGER NOT NULL,
-	link_type INTEGER NOT NULL,
-	d_release INTEGER NOT NULL,
-	mb_release INTEGER NOT NULL,
-	mb_track INTEGER NOT NULL
+	mb_artist integer NOT NULL,
+	linkgid uuid NOT NULL,
+	attrgid uuid[] NOT NULL,
+	d_release integer NOT NULL,
+	mb_release integer NOT NULL,
+	mb_track integer NOT NULL
 );
 
 INSERT INTO discogs.tmp_discogs_trackrole_step_04_allartists
-SELECT tar.mb_artist, tar.link_type, tar.d_release, tar.mb_release, tar.mb_track
+SELECT tar.mb_artist, tar.linkgid, tar.attrgid, tar.d_release, tar.mb_release, tar.mb_track
   FROM discogs.tmp_discogs_trackrole_step_03_mbtrack tar
-  WHERE	NOT EXISTS
+ WHERE NOT EXISTS
 	(SELECT 1 
 	   FROM discogs.track dt, discogs.tracks_extraartists_roles txr,
-		discogs.dmap_role role, musicbrainz.lt_artist_track lt
-	  WHERE dt.discogs_id = tar.d_release
-		AND txr.role_name = role.role_name AND role.link_name = lt.name 
-		AND lt.id = tar.link_type AND txr.track_id = dt.track_id
-		AND (NOT EXISTS 
+		discogs.dmap_role_full role
+	  WHERE dt.discogs_id = tar.d_release AND txr.track_id = dt.track_id
+	    AND role.link_gid = tar.linkgid AND txr.role_name = role.role_name
+	    AND COALESCE(txr.role_details, '') = COALESCE(role.role_details, '')
+	    AND (NOT EXISTS 
 			(SELECT 1 
 			   FROM discogs.dmap_artist map
 			  WHERE map.d_artist = txr.artist_name 
@@ -349,30 +357,30 @@ CREATE FUNCTION tmp_discogs_trackrole_step_05_new() RETURNS void
     AS $$
 BEGIN
 
-create table discogs.tmp_discogs_trackrole_step_05_new
+CREATE TABLE discogs.tmp_discogs_trackrole_step_05_new
 (
-mb_artist integer not null,
-link_type integer not null,
-d_release integer not null,
-mb_release integer not null,
-mb_track integer not null
+	mb_artist integer NOT NULL,
+	linkgid uuid NOT NULL,
+	attrgid uuid[] NOT NULL,
+	d_release integer NOT NULL,
+	mb_release integer NOT NULL,
+	mb_track integer NOT NULL
 );
 
-insert into discogs.tmp_discogs_trackrole_step_05_new
-select 
-mb_artist, link_type, d_release, mb_release, mb_track
-from discogs.tmp_discogs_trackrole_step_04_allartists tar
-where 
-not exists
-(select 1 from 
-musicbrainz.l_artist_track lat,
-musicbrainz.artist a1, musicbrainz.artist a2, mbot.mbmap_artist_equiv equiv
-where
-a1.id = mb_artist
-and a1.gid = equiv.artist and a2.gid = equiv.equiv
-and lat.link0 = a2.id and lat.link1 = mb_track and lat.link_type = tar.link_type);
+INSERT INTO discogs.tmp_discogs_trackrole_step_05_new
+SELECT mb_artist, linkgid, attrgid, d_release, mb_release, mb_track
+  FROM discogs.tmp_discogs_trackrole_step_04_allartists tar
+ WHERE NOT EXISTS 
+	(SELECT 1
+	   FROM musicbrainz.l_artist_track lat, musicbrainz.lt_artist_track lt,
+		musicbrainz.artist a1, musicbrainz.artist a2, 
+		mbot.mbmap_artist_equiv equiv
+	  WHERE a1.id = mb_artist
+	    AND a1.gid = equiv.artist AND a2.gid = equiv.equiv
+	    AND lat.link0 = a2.id AND lat.link1 = mb_track
+	    AND lat.link_type = lt.id AND lt.mbid::uuid = tar.linkgid);
 
-drop table discogs.tmp_discogs_trackrole_step_04_allartists;
+DROP TABLE discogs.tmp_discogs_trackrole_step_04_allartists;
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackrole_step_05_new';
 
@@ -392,15 +400,16 @@ CREATE TABLE discogs.tmp_role_attr
 (
   role_name text NOT NULL,
   role_details text,
-  attr_name character varying(255)
+  attr_gid uuid NOT NULL
 );
 
 INSERT INTO discogs.tmp_role_attr
-(role_name, role_details, attr_name)
-SELECT DISTINCT t.role_name, t.role_details, attr_name
-  FROM discogs.tmp_role_list t, discogs.dmap_role r
+(role_name, role_details, attr_gid)
+SELECT DISTINCT t.role_name, t.role_details, at.mbid::uuid attr_gid
+  FROM discogs.tmp_role_list t, discogs.dmap_role r, musicbrainz.link_attribute_type at
  WHERE t.role_name = r.role_name 
-   AND attr_name IS NOT NULL;
+   AND r.attr_name IS NOT NULL
+   AND r.attr_name = TRIM(at.name);
 
 CREATE INDEX tmp_role_attr_idx_role
   ON discogs.tmp_role_attr
@@ -408,29 +417,27 @@ CREATE INDEX tmp_role_attr_idx_role
   (role_name, role_details NULLS FIRST);
 
 INSERT INTO discogs.tmp_role_attr
-(role_name, role_details, attr_name)
-SELECT DISTINCT t.role_name, t.role_details, r.attr_name
-  FROM discogs.tmp_role_list t, discogs.dmap_role r
+(role_name, role_details, attr_gid)
+SELECT DISTINCT t.role_name, t.role_details, at.mbid::uuid attr_gid
+  FROM discogs.tmp_role_list t, discogs.dmap_role r, musicbrainz.link_attribute_type at
  WHERE to_tsvector('mbot.english_nostop', t.role_details) @@ role_query
    AND r.attr_name IS NOT NULL
+   AND r.attr_name = TRIM(at.name)
    AND NOT EXISTS 
 	(SELECT 1 FROM discogs.dmap_role r2
 	  WHERE r2.role_name = t.role_name 
-	    AND r2.attr_name = r.attr_name);
+	    AND r2.attr_name = at.name);
 
 ALTER TABLE discogs.tmp_role_attr CLUSTER ON tmp_role_attr_idx_role;	    
 
 DELETE FROM discogs.tmp_role_attr t
- USING musicbrainz.link_attribute_type l1
- WHERE t.attr_name = TRIM(l1.name)
-   AND EXISTS
+ WHERE EXISTS
 	(SELECT 1 
-	   FROM mbot.mb_attr_type_descs tree, 
-		musicbrainz.lt_artist_track l2, discogs.tmp_role_attr t2
-	  WHERE t2.attr_name = TRIM(l2.name) AND t.role_name = t2.role_name 
-	    AND t.attr_name != t2.attr_name
+	   FROM mbot.mb_attr_type_descs tree, discogs.tmp_role_attr t2
+	  WHERE t.attr_gid != t2.attr_gid
+	    AND t.role_name = t2.role_name 
 	    AND COALESCE(t.role_details, '') = COALESCE(t2.role_details, '')
-	    AND tree.attr_type = l1.id AND tree.desc_type = l2.id);
+	    AND tree.attr_type = t.attr_gid AND tree.desc_type = t2.attr_gid);
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_role_attr';
 
@@ -447,16 +454,16 @@ CREATE FUNCTION tmp_role_link() RETURNS void
 
 CREATE TABLE discogs.tmp_role_link
 (
-  role_name text NOT NULL,
-  role_details text,
-  link_name character varying(50)
+	role_name 	text NOT NULL,
+	role_details 	text,
+	link_gid 	uuid
 );
 
 INSERT INTO discogs.tmp_role_link
-(role_name, role_details, link_name)
-SELECT DISTINCT t.role_name, t.role_details, link_name
-  FROM discogs.tmp_role_list t, discogs.dmap_role r
- WHERE t.role_name = r.role_name
+(role_name, role_details, link_gid)
+SELECT DISTINCT t.role_name, t.role_details, l.mbid::uuid link_gid
+  FROM discogs.tmp_role_list t, discogs.dmap_role r, musicbrainz.lt_artist_track l
+ WHERE t.role_name = r.role_name AND l.name = r.link_name
    AND link_name IS NOT NULL;
 
 CREATE INDEX tmp_role_link_idx_role
@@ -465,10 +472,11 @@ CREATE INDEX tmp_role_link_idx_role
   (role_name, role_details NULLS FIRST);
 
 INSERT INTO discogs.tmp_role_link
-(role_name, role_details, link_name)
-SELECT DISTINCT t.role_name, t.role_details, r.link_name
-  FROM discogs.tmp_role_link t, discogs.dmap_role r
+(role_name, role_details, link_gid)
+SELECT DISTINCT t.role_name, t.role_details, l.mbid::uuid link_gid
+  FROM discogs.tmp_role_link t, discogs.dmap_role r, musicbrainz.lt_artist_track l
  WHERE to_tsvector('mbot.english_nostop', t.role_details) @@ role_query
+   AND l.name = r.link_name
    AND r.link_name IS NOT NULL
    AND NOT EXISTS 
 	(SELECT 1 FROM discogs.dmap_role r2
@@ -478,29 +486,20 @@ SELECT DISTINCT t.role_name, t.role_details, r.link_name
 ALTER TABLE discogs.tmp_role_link CLUSTER ON tmp_role_link_idx_role;	    
 
 DELETE FROM discogs.tmp_role_link t
- USING musicbrainz.lt_artist_track l1
- WHERE t.link_name = l1.name
-   AND EXISTS
+ WHERE EXISTS
 	(SELECT 1 
-	   FROM mbot.mb_link_type_descs tree, 
-		musicbrainz.lt_artist_track l2, discogs.tmp_role_link t2
-	  WHERE t2.link_name = l2.name AND t.role_name = t2.role_name 
-	    AND t.link_name != t2.link_name
-	    AND tree.link0type = 'artist' AND tree.link1type = 'track'
+	   FROM mbot.mb_link_type_descs tree, discogs.tmp_role_link t2
+	  WHERE t.role_name = t2.role_name 
+	    AND t.link_gid != t2.link_gid
 	    AND COALESCE(t.role_details, '') = COALESCE(t2.role_details, '')
-	    AND tree.link_type = l1.id AND tree.desc_type = l2.id);
+	    AND tree.link_type = t.link_gid AND tree.desc_type = t2.link_gid);
 
 DELETE FROM discogs.tmp_role_link t
- USING musicbrainz.lt_artist_track l1
- WHERE t.link_name = l1.name
-   AND NOT EXISTS
+ WHERE NOT EXISTS
 	(SELECT 1 
-	   FROM mbot.mb_link_type_descs tree, 
-		musicbrainz.lt_artist_track l2, discogs.tmp_role_link t2
-	  WHERE t2.link_name = l2.name AND t.role_name = t2.role_name 
-	    AND tree.link0type = 'artist' AND tree.link1type = 'track'
-	    AND t2.role_details IS NULL
-	    AND tree.link_type = l2.id AND tree.desc_type = l1.id);
+	   FROM mbot.mb_link_type_descs tree, discogs.tmp_role_link t2
+	  WHERE t2.role_details IS NULL
+	    AND tree.link_type = t2.link_gid AND tree.desc_type = t.link_gid);
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_role_link';
 
@@ -742,9 +741,9 @@ BEGIN
 TRUNCATE discogs.dmap_role_full;
 
 INSERT INTO discogs.dmap_role_full
-(role_name, role_details, link_name, attr_name)
-SELECT role_name, role_details, link_name,
-	(SELECT ARRAY_AGG(DISTINCT attr_name) 
+(role_name, role_details, link_gid, attr_gid)
+SELECT role_name, role_details, link_gid,
+	(SELECT COALESCE(ARRAY_AGG(DISTINCT attr_gid), ARRAY[]::uuid[])
 	   FROM discogs.tmp_role_attr attr
 	  WHERE link.role_name = attr.role_name
 	    AND COALESCE(link.role_details, '') = COALESCE(attr.role_details, ''))
@@ -1038,8 +1037,8 @@ CREATE VIEW dmap_release_v AS
 CREATE TABLE dmap_role_full (
     role_name text NOT NULL,
     role_details text,
-    link_name character varying(50),
-    attr_name character varying(255)[]
+    link_gid uuid NOT NULL,
+    attr_gid uuid[] NOT NULL
 );
 
 
@@ -1058,7 +1057,7 @@ CREATE TABLE dmap_track (
 --
 
 CREATE VIEW edits_artist_track AS
-    SELECT edits_relationship_track.link0gid AS artist, edits_relationship_track.link1gid AS track, edits_relationship_track.linktype FROM mbot.edits_relationship_track WHERE ((((edits_relationship_track.link0type)::text = 'artist'::text) AND ((edits_relationship_track.link1type)::text = 'track'::text)) AND ((edits_relationship_track.source)::text ~~ '%discogs%'::text));
+    SELECT e.link0gid AS artist, e.link1gid AS track, (l.mbid)::uuid AS linktype FROM mbot.edits_relationship_track e, musicbrainz.lt_artist_track l WHERE (((((e.link0type)::text = 'artist'::text) AND ((e.link1type)::text = 'track'::text)) AND ((e.source)::text ~~ '%discogs%'::text)) AND (e.linkgid = (l.mbid)::uuid));
 
 
 --

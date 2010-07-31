@@ -173,20 +173,20 @@ sub validate {
 				my $reltype = $rel->type;
 				$reltype =~ s/'/\\'/g;
 				
-				my $reltypeid = $sql->SelectSingleValue(
+				my $reltypegid = $sql->SelectSingleValue(
 							$self->select_from(
-								['id'],
+								['gid'],
 								'mbot.ltinfo_artist_track',
 								{'shortlinkphrase' => lc($reltype)}));
 				
-				return $self->report_failure($edit->{'id'}, "Unknown link type: $reltype") unless defined $reltypeid && $reltypeid;
+				return $self->report_failure($edit->{'id'}, "Unknown link type: $reltype") unless defined $reltypegid && $reltypegid;
 				
 				my $rel_is_higher = $sql->SelectSingleValue(
 					$self->select_from(
 						['1'],
 						'mbot.mb_link_type_descs',
-						{'link_type' => $reltypeid,
-						 'desc_type' => $edit->{'linktype'},
+						{'link_type' => $reltypegid,
+						 'desc_type' => $edit->{'linkgid'},
 						 'link0type' => $edit->{'link0type'},
 						 'link1type' => $edit->{'link1type'}},
 						'LIMIT 1'));
@@ -194,14 +194,14 @@ sub validate {
 					$self->select_from(
 						['1'],
 						'mbot.mb_link_type_descs',
-						{'link_type' => $edit->{'linktype'},
-						 'desc_type' => $reltypeid,
+						{'link_type' => $edit->{'linkgid'},
+						 'desc_type' => $reltypegid,
 						 'link0type' => $edit->{'link0type'},
 						 'link1type' => $edit->{'link1type'}},
 						'LIMIT 1'));
 				
 				my $relmsg;
-				if ($reltypeid == $edit->{'linktype'}) {
+				if ($reltypegid eq $edit->{'linkgid'}) {
 					$relmsg = '.';
 				} elsif ($rel_is_higher || $rel_is_lower) {
 					my $link_is_planned = $sql->SelectSingleValue(
@@ -210,7 +210,7 @@ sub validate {
 							'discogs.edits_artist_track',
 							{'artist'   => $rel->target,
 							 'track'    => $edit->{'link1gid'},
-							 'linktype' => $reltypeid},
+							 'linktype' => $reltypegid},
 							'LIMIT 1'));
 							 
 					next if $link_is_planned;
@@ -233,7 +233,7 @@ sub validate {
 								'discogs.edits_artist_track',
 								{'artist'   => $rel->target,
 								 'track'    => $edit->{'link1gid'},
-								 'linktype' => $reltypeid},
+								 'linktype' => $reltypegid},
 								'LIMIT 1'));
 								 
 						next if $link_is_planned;
