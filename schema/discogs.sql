@@ -1027,7 +1027,7 @@ CREATE TABLE dmap_release (
 --
 
 CREATE VIEW dmap_release_v AS
-    SELECT a.gid AS mb_album, l.discogs_id AS d_album FROM discogs_release_url l, musicbrainz.l_album_url lu, musicbrainz.url u, musicbrainz.album a, musicbrainz.lt_album_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND ((l.url)::text = (u.url)::text));
+    SELECT a.gid AS mb_album, l.discogs_id AS d_album FROM discogs_release_url l, musicbrainz.l_album_url lu, musicbrainz.url u, musicbrainz.album a, musicbrainz.lt_album_url lt WHERE ((((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND ((l.url)::text = (u.url)::text)) AND (a.quality < 2));
 
 
 --
