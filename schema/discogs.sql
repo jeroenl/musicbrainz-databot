@@ -76,7 +76,6 @@ SELECT * FROM discogs.tmp_discogs_trackrole_step_06_ready newedits
 		AND newedits.link0type = edits.link0type
 		AND newedits.link1type = edits.link1type
 		AND newedits.linkgid = edits.linkgid
-		AND newedits.attrgid <@ edits.attrgid
 		AND newedits.source = edits.source
 		AND newedits.sourceurl = edits.sourceurl);
 
@@ -498,7 +497,7 @@ DELETE FROM discogs.tmp_role_link t
  WHERE NOT EXISTS
 	(SELECT 1 
 	   FROM mbot.mb_link_type_descs tree, discogs.tmp_role_link t2
-	  WHERE t2.role_details IS NULL
+	  WHERE t.role_name = t2.role_name AND t2.role_details IS NULL
 	    AND tree.link_type = t2.link_gid AND tree.desc_type = t.link_gid);
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_role_link';
@@ -1176,7 +1175,7 @@ CREATE TABLE track (
 --
 
 CREATE VIEW track_info AS
-    SELECT d_t.discogs_id, d_t.track_id, d_t.title AS tracktitle, d_t."position", txr.artist_name, txr.role_name, txr.role_details, release.title AS reltitle, COALESCE(txr.artist_alias, txr.artist_name) AS nametext, dmap_artist.mb_artist, dmap_track.mb_track, rel_url.url, lt.id AS link_type, dmap_artist.mb_original FROM track d_t, dmap_track, discogs_release_url rel_url, tracks_extraartists_roles txr, dmap_artist, dmap_role, musicbrainz.lt_artist_track lt, release WHERE ((((((((dmap_track.d_track = d_t.track_id) AND (rel_url.discogs_id = d_t.discogs_id)) AND (release.discogs_id = d_t.discogs_id)) AND (txr.track_id = d_t.track_id)) AND (txr.artist_name = dmap_artist.d_artist)) AND (COALESCE(txr.artist_alias, ''::text) = COALESCE(dmap_artist.d_alias, ''::text))) AND ((dmap_role.link_name)::text = (lt.name)::text)) AND (dmap_role.role_name = txr.role_name)) ORDER BY txr.role_details NULLS FIRST;
+    SELECT d_t.discogs_id, d_t.track_id, d_t.title AS tracktitle, d_t."position", txr.artist_name, txr.role_name, txr.role_details, release.title AS reltitle, COALESCE(txr.artist_alias, txr.artist_name) AS nametext, dmap_artist.mb_artist, dmap_track.mb_track, rel_url.url, lt.id AS link_type, dmap_artist.mb_original FROM track d_t, dmap_track, discogs_release_url rel_url, tracks_extraartists_roles txr, dmap_artist, dmap_role_full, musicbrainz.lt_artist_track lt, release WHERE (((((((((dmap_track.d_track = d_t.track_id) AND (rel_url.discogs_id = d_t.discogs_id)) AND (release.discogs_id = d_t.discogs_id)) AND (txr.track_id = d_t.track_id)) AND (txr.artist_name = dmap_artist.d_artist)) AND (COALESCE(txr.artist_alias, ''::text) = COALESCE(dmap_artist.d_alias, ''::text))) AND (dmap_role_full.link_gid = (lt.mbid)::uuid)) AND (dmap_role_full.role_name = txr.role_name)) AND (COALESCE(dmap_role_full.role_details, ''::text) = COALESCE(txr.role_details, ''::text))) ORDER BY txr.role_details NULLS FIRST;
 
 
 --
