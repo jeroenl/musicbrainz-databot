@@ -624,10 +624,13 @@ CREATE FUNCTION upd_dmap_artist() RETURNS void
 
 TRUNCATE discogs.dmap_artist;
 
+-- Fill from Discogs URLs
 INSERT INTO discogs.dmap_artist
 (mb_artist, d_artist)
 SELECT * FROM discogs.dmap_artist_v;
 
+-- For all performance names, add their Discogs URLs also to the legal name
+-- (the name resolution will link to the closest match)
 INSERT INTO discogs.dmap_artist
 (mb_artist, d_artist)
 SELECT a2.gid mb_artist, d_artist
@@ -640,13 +643,18 @@ SELECT a2.gid mb_artist, d_artist
 		   FROM discogs.dmap_artist d2
 		  WHERE d2.mb_artist = a2.gid AND d2.d_artist = d.d_artist);
 
+-- Add entries for all name variations
 INSERT INTO discogs.dmap_artist
 (mb_artist, d_artist, d_alias)
 SELECT DISTINCT dmap.mb_artist, dmap.d_artist, tx.artist_alias
-FROM discogs.dmap_artist_v dmap, discogs.tracks_extraartists_roles tx
+FROM discogs.dmap_artist dmap, discogs.tracks_extraartists_roles tx
 WHERE tx.artist_name = dmap.d_artist
 AND tx.artist_alias IS NOT NULL;
 
+-- Name resolution: delete everything except the artist that has the closest
+-- word distance between the MB name and either the Discogs name variation or
+-- Discogs name. Weights for the word distance are set so that initials will
+-- usually be expanded to the full name, instead of other short names.
 DELETE FROM discogs.dmap_artist map_out
 WHERE EXISTS (select 1 FROM discogs.dmap_artist map_in 
 		WHERE map_out.d_artist = map_in.d_artist 
@@ -664,6 +672,7 @@ AND mb_artist !=
 			 levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), name, 1, 10, 10)
 	 asc limit 1);
 
+-- Replace all collaborations with '&' in the name with the individual collaborators
 TRUNCATE discogs.dmap_artist_collab;
 
 INSERT INTO discogs.dmap_artist_collab (mb_artist, mb_collab)
