@@ -393,6 +393,24 @@ CREATE TABLE mbmap_artist_equiv (
 
 
 --
+-- Name: mb_attr_type_descs; Type: TABLE; Schema: mbot; Owner: -
+--
+
+CREATE TABLE mb_attr_type_descs (
+    attr_type uuid NOT NULL,
+    desc_type uuid NOT NULL
+);
+
+
+--
+-- Name: attrinfo; Type: VIEW; Schema: mbot; Owner: -
+--
+
+CREATE VIEW attrinfo AS
+    SELECT DISTINCT (l2.mbid)::uuid AS valuegid, l2.id AS valueid, l1.name AS attrname FROM musicbrainz.link_attribute_type l1, musicbrainz.link_attribute_type l2, mb_attr_type_descs tree WHERE ((((l1.parent = 0) AND (l1.id <> 0)) AND (tree.attr_type = (l1.mbid)::uuid)) AND (tree.desc_type = (l2.mbid)::uuid));
+
+
+--
 -- Name: edits_artist_typechange; Type: TABLE; Schema: mbot; Owner: -
 --
 
@@ -443,16 +461,6 @@ CREATE VIEW edits_mb_type_from_relations_v AS
 
 CREATE VIEW ltinfo_artist_track AS
     SELECT (lt_artist_track.mbid)::uuid AS gid, replace((lt_artist_track.shortlinkphrase)::text, ' '::text, ''::text) AS shortlinkphrase FROM musicbrainz.lt_artist_track;
-
-
---
--- Name: mb_attr_type_descs; Type: TABLE; Schema: mbot; Owner: -
---
-
-CREATE TABLE mb_attr_type_descs (
-    attr_type uuid NOT NULL,
-    desc_type uuid NOT NULL
-);
 
 
 --

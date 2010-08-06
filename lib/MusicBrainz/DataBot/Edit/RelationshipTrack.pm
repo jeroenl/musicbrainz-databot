@@ -29,11 +29,7 @@ sub run_task {
 	my $releaseid = $self->_find_official_id('release', $releasegid);
 	
 	return $self->report_failure($edit->{'id'}, 'Could not find official link0 ID') unless defined $link0id;
-	
-	unless (defined $releaseid) {
-		$self->report_failure($edit->{'id'}, 'Could not find official release ID');
-		return;
-	}
+	return $self->report_failure($edit->{'id'}, 'Could not find official release ID') unless defined $releaseid;
 	
 	$self->throttle('mbsite');
 	$bot->get("http://musicbrainz.org/edit/relationship/add.html?link0=$edit->{link0type}=$link0id&link1=album=$releaseid&returnto=1&usetracks=0");
@@ -49,79 +45,35 @@ sub run_task {
 	my $typeinput = $edit_form->find_input('linktypeid');
 	my $foundtype = 0;
 
-	foreach my $type ($typeinput->value_names) {
-		my $clean_mbtype = $type;
-		my $clean_mytype = $edit->{'linkphrase'};
-		
-		$clean_mbtype =~ s/^\s*//g;
-		$clean_mbtype =~ s/{[^}]+} ?//g;
-		$clean_mytype =~ s/{[^}]+} ?//g;
-		
-		if ($clean_mbtype eq $clean_mytype) {
+	foreach my $type ($typeinput->possible_values) {
+		if ($type =~ /^$edit->{linktype}\|/) {
 			$typeinput->value($type);
 			$foundtype = 1;
 			last;
-		}
+		}	
 	}
 	
-	$self->report_failure($edit->{'id'}, 'Could not find relation type') unless $foundtype;
+	return $self->report_failure($edit->{'id'}, 'Could not find relation type') unless $foundtype;
 	
-	if ($edit->{'source'} eq 'discogs-trackrole') {
-		my $role = $sql->SelectSingleValue(
-			$self->select_from(
-				['role_details'],
-				'discogs.track_info',
-				{'mb_artist' => $edit->{'link0gid'},
-				 'mb_track'  => $edit->{'link1gid'},
-				 'url'       => $edit->{'sourceurl'},
-				 'link_type' => $edit->{'linktype'}},
-				'LIMIT 1'));
-			
-		if (defined $role) {
-			if ($role =~ /addit/i) {
-				my $additionalfield = $edit_form->find_input('attr_additional_0');
-				if (defined $additionalfield) {
-					$additionalfield->check;
-					$self->debug("Role is additional ($role)");
-				} else {
-					$self->report_failure($edit->{'id'}, 'Could not find additional field');
-				}
+	if ($edit->{'attrgid'}) {
+		foreach my $attrgid (@{$edit->{'attrgid'}}) {
+			my $attr = $sql->SelectSingleRowHash(
+				$self->select_from(
+					['valueid', 'attrname'],
+					'mbot.attrinfo',
+					{'valuegid' => $attrgid},
+					'LIMIT 1'));
+					
+			unless (defined $attr) {
+				return $self->report_failure($edit->{'id'}, "Could not find info for attribute $attrgid");
 			}
-			if ($role =~ /assist/i) {
-				my $additionalfield = $edit_form->find_input('attr_assistant_0');
-				if (defined $additionalfield) {
-					$additionalfield->check;
-					$self->debug("Role is assistant ($role)");
-				} else {
-					$self->report_failure($edit->{'id'}, 'Could not find additional field');
-				}
-			}
-			if ($role =~ /exec/i) {
-				my $additionalfield = $edit_form->find_input('attr_executive_0');
-				if (defined $additionalfield) {
-					$additionalfield->check;
-					$self->debug("Role is executive ($role)");
-				} else {
-					$self->report_failure($edit->{'id'}, 'Could not find additional field');
-				}
-			}
-			if ($role =~ /(guest|featur)/i) {
-				my $additionalfield = $edit_form->find_input('attr_guest_0');
-				if (defined $additionalfield) {
-					$additionalfield->check;
-					$self->debug("Role is guest ($role)");
-				} else {
-					$self->report_failure($edit->{'id'}, 'Could not find additional field');
-				}
-			}
-			if ($role =~ /associate/i) {
-				my $additionalfield = $edit_form->find_input('attr_associate_0');
-				if (defined $additionalfield) {
-					$additionalfield->check;
-					$self->debug("Role is associate ($role)");
-				} else {
-					$self->report_failure($edit->{'id'}, 'Could not find additional field');
-				}
+					
+			my $field = $edit_form->find_input("attr_$attr->{attrname}_0");
+			if (defined $field) {
+				$field->check;
+				$self->debug("Set $attr->{attrname} attribute");
+			} else {
+				return $self->report_failure($edit->{'id'}, "Could not find $attr->{attrname} field");
 			}
 		}
 	}
