@@ -460,7 +460,7 @@ CREATE VIEW edits_mb_type_from_relations_v AS
 --
 
 CREATE VIEW ltinfo_artist_track AS
-    SELECT (lt_artist_track.mbid)::uuid AS gid, replace((lt_artist_track.shortlinkphrase)::text, ' '::text, ''::text) AS shortlinkphrase FROM musicbrainz.lt_artist_track;
+    SELECT (lt_artist_track.mbid)::uuid AS gid, lower(replace(replace((lt_artist_track.shortlinkphrase)::text, ' '::text, ''::text), '-'::text, ''::text)) AS shortlinkphrase FROM musicbrainz.lt_artist_track;
 
 
 --
