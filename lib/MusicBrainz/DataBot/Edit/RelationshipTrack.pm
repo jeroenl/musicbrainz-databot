@@ -159,10 +159,11 @@ sub validate {
 					my $link_is_planned = $sql->SelectSingleValue(
 						$self->select_from(
 							['1',],
-							'discogs.edits_artist_track',
-							{'artist'   => $rel->target,
-							 'track'    => $edit->{'link1gid'},
-							 'linktype' => $reltypegid},
+							'discogs.credits_artist_track',
+							{'artist'    => $rel->target,
+							 'track'     => $edit->{'link1gid'},
+							 'sourceurl' => $edit->{'sourceurl'},
+							 'linktype'  => $reltypegid},
 							'LIMIT 1'));
 							 
 					next if $link_is_planned;
@@ -182,10 +183,11 @@ sub validate {
 						my $link_is_planned = $sql->SelectSingleValue(
 							$self->select_from(
 								['1',],
-								'discogs.edits_artist_track',
-								{'artist'   => $rel->target,
-								 'track'    => $edit->{'link1gid'},
-								 'linktype' => $reltypegid},
+								'discogs.credits_artist_track',
+								{'artist'    => $rel->target,
+								 'track'     => $edit->{'link1gid'},
+								 'sourceurl' => $edit->{'sourceurl'},
+								 'linktype'  => $reltypegid},
 								'LIMIT 1'));
 								 
 						next if $link_is_planned;
