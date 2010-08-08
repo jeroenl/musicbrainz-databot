@@ -365,8 +365,8 @@ CREATE TABLE edits_relationship (
     link1type character varying(10) NOT NULL,
     link0gid character(36) NOT NULL,
     link1gid character(36) NOT NULL,
-    linkgid uuid,
-    attrgid uuid[]
+    linkgid uuid NOT NULL,
+    attrgid uuid[] NOT NULL
 )
 INHERITS (edits);
 

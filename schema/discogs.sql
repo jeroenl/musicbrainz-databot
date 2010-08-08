@@ -76,8 +76,7 @@ SELECT * FROM discogs.tmp_discogs_trackrole_step_06_ready newedits
 		AND newedits.link0type = edits.link0type
 		AND newedits.link1type = edits.link1type
 		AND newedits.linkgid = edits.linkgid
-		AND newedits.source = edits.source
-		AND newedits.sourceurl = edits.sourceurl);
+		AND newedits.source = edits.source);
 
 DROP TABLE discogs.tmp_discogs_trackrole_step_06_ready;
 
