@@ -22,17 +22,14 @@ sub run_task {
 	
 	return unless $self->validate($edit);
 	
-	$edit->{'trackid'} = $self->_find_official_id($edit->{'link1type'}, $edit->{'link1gid'});
-	
-	my $releasegid = $sql->SelectSingleValue("SELECT gid FROM album WHERE id=$edit->{release}");
 	my $link0id = $self->_find_official_id($edit->{'link0type'}, $edit->{'link0gid'});
-	my $releaseid = $self->_find_official_id('release', $releasegid);
+	my $link1id = $self->_find_official_id($edit->{'link1type'}, $edit->{'link1gid'});
 	
 	return $self->report_failure($edit->{'id'}, 'Could not find official link0 ID') unless defined $link0id;
-	return $self->report_failure($edit->{'id'}, 'Could not find official release ID') unless defined $releaseid;
+	return $self->report_failure($edit->{'id'}, 'Could not find official link1 ID') unless defined $link1id;
 	
 	$self->throttle('mbsite');
-	$bot->get("http://musicbrainz.org/edit/relationship/add.html?link0=$edit->{link0type}=$link0id&link1=album=$releaseid&returnto=1&usetracks=0");
+	$bot->get("http://musicbrainz.org/edit/relationship/add.html?link0=$edit->{link0type}=$link0id&link1=$edit->{link1type}=$link1id");
 	$self->check_login;
 	
 	my $edit_form = $bot->form_with_fields(qw/linktypeid link0 link1/);
@@ -78,15 +75,7 @@ sub run_task {
 		}
 	}
 	
-	my $trackfield = $edit_form->find_input('track' . $edit->{'trackid'});
-		
-	if (defined $trackfield) {
-		$trackfield->check;
-		$self->info("Edit $edit->{id}: Adding relationship $edit->{link0gid}\->$edit->{linkname}\->$edit->{link1gid}");
-	} else {
-		$self->report_failure($edit->{'id'}, 'Could not find track on edit page');
-		return;
-	}
+	$self->info("Edit $edit->{id}: Adding relationship $edit->{link0gid}\->$edit->{linkname}\->$edit->{link1gid}");
 	
 	$bot->set_fields( 'notetext' => $note );
 	
