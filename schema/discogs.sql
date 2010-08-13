@@ -106,7 +106,7 @@ BEGIN
 
 INSERT INTO mspider.tasks_discogs_release
 (discogs_id)
-SELECT substring(u.url from '[0-9]+$')::integer as discogs_id
+SELECT DISTINCT substring(u.url from '[0-9]+$')::integer as discogs_id
   FROM musicbrainz.l_album_url lu, musicbrainz.url u, musicbrainz.lt_album_url lt
  WHERE lu.link_type = lt.id AND lt.name::text = 'discogs'::text AND lu.link1 = u.id
    AND u.url ~ E'release\/[0-9]+$'
