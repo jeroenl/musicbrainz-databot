@@ -96,6 +96,33 @@ $$;
 
 
 --
+-- Name: find_spider_discogs_release(); Type: FUNCTION; Schema: discogs; Owner: -
+--
+
+CREATE FUNCTION find_spider_discogs_release() RETURNS void
+    LANGUAGE plpgsql
+    AS $_$
+BEGIN
+
+INSERT INTO mspider.tasks_discogs_release
+(discogs_id)
+SELECT substring(u.url from '[0-9]+$')::integer as discogs_id
+  FROM musicbrainz.l_album_url lu, musicbrainz.url u, musicbrainz.lt_album_url lt
+ WHERE lu.link_type = lt.id AND lt.name::text = 'discogs'::text AND lu.link1 = u.id
+   AND u.url ~ E'release\/[0-9]+$'
+   AND NOT EXISTS (
+	SELECT 1 
+	  FROM mspider.tasks_discogs_release t
+	 WHERE t.discogs_id = substring(u.url from '[0-9]+$')::integer)
+	 limit 100;
+	 
+UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='find_spider_discogs_release';
+
+END;
+$_$;
+
+
+--
 -- Name: gen_tquery(); Type: FUNCTION; Schema: discogs; Owner: -
 --
 
