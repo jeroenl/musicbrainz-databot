@@ -407,7 +407,7 @@ CREATE TABLE mb_attr_type_descs (
 --
 
 CREATE VIEW attrinfo AS
-    SELECT DISTINCT (l2.mbid)::uuid AS valuegid, l2.id AS valueid, l1.name AS attrname FROM musicbrainz.link_attribute_type l1, musicbrainz.link_attribute_type l2, mb_attr_type_descs tree WHERE ((((l1.parent = 0) AND (l1.id <> 0)) AND (tree.attr_type = (l1.mbid)::uuid)) AND (tree.desc_type = (l2.mbid)::uuid));
+    SELECT DISTINCT (l2.mbid)::uuid AS valuegid, l2.id AS valueid, l2.name AS valuename, l1.id AS attrid, l1.name AS attrname FROM musicbrainz.link_attribute_type l1, musicbrainz.link_attribute_type l2, mb_attr_type_descs tree WHERE ((((l1.parent = 0) AND (l1.id <> 0)) AND (tree.attr_type = (l1.mbid)::uuid)) AND (tree.desc_type = (l2.mbid)::uuid));
 
 
 --

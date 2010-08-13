@@ -5,6 +5,7 @@ use WebService::MusicBrainz::Artist;
 use WebService::MusicBrainz::Track;
 
 use List::Uniq 'uniq';
+use Clone qw(clone);
 
 extends 'MusicBrainz::DataBot::Edit::BaseEditTask';
 
@@ -84,26 +85,46 @@ sub run_task {
 	
 	return $self->report_failure($edit->{'id'}, 'Could not find relation type') unless $foundtype;
 	
-	if ($edit->{'attrgid'}) {
-		foreach my $attrgid (@{$edit->{'attrgid'}}) {
-			my $attr = $sql->SelectSingleRowHash(
-				$self->select_from(
-					['valueid', 'attrname'],
-					'mbot.attrinfo',
-					{'valuegid' => $attrgid},
-					'LIMIT 1'));
-					
-			unless (defined $attr) {
-				return $self->report_failure($edit->{'id'}, "Could not find info for attribute $attrgid");
+	foreach my $attrgid (@{$edit->{'attrgid'}}) {
+		my $attr = $sql->SelectSingleRowHash(
+			$self->select_from(
+				['valueid', 'valuename', 'attrid', 'attrname'],
+				'mbot.attrinfo',
+				{'valuegid' => $attrgid},
+				'LIMIT 1'));
+				
+		unless (defined $attr) {
+			return $self->report_failure($edit->{'id'}, "Could not find info for attribute $attrgid");
+		}
+				
+		my $field = $edit_form->find_input("attr_$attr->{attrname}_0");
+		
+		unless (defined $field) {
+			return $self->report_failure($edit->{'id'}, "Could not find $attr->{attrname} field");
+		}
+		
+		if ($field->type eq 'checkbox') {
+			$field->check;
+			$self->debug("Set $attr->{attrname} attribute");
+		} elsif ($field->type eq 'option') {
+			my $fieldindex = 0;
+			while ($field->value) {
+				my $fieldname = "attr_$attr->{attrname}_" . ++$fieldindex;
+				my $nextfield = $edit_form->find_input($fieldname);
+				
+				unless (defined $nextfield) {
+					$nextfield = clone $field;
+					$nextfield->{'name'} = $fieldname;
+					$edit_form->push_input('option', $nextfield);
+				}
+				
+				$field = $nextfield;
 			}
-					
-			my $field = $edit_form->find_input("attr_$attr->{attrname}_0");
-			if (defined $field) {
-				$field->check;
-				$self->debug("Set $attr->{attrname} attribute");
-			} else {
-				return $self->report_failure($edit->{'id'}, "Could not find $attr->{attrname} field");
-			}
+			
+			$field->value($attr->{'valueid'});
+			$self->debug("Set $attr->{attrname} attribute to $attr->{valuename}");
+		} else {
+			return $self->report_failure($edit->{'id'}, "Unknown field type for attribute $attr->{attrname}");
 		}
 	}
 	
