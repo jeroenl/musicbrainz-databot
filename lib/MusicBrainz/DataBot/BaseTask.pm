@@ -40,6 +40,13 @@ sub ready
 	return 1;
 }
 
+sub prepare_tasks
+{
+	my ($self, @tasks) = @_;
+	
+	return @tasks;
+}
+
 ### Exposed to other classes
 
 sub run_tasks {
@@ -48,8 +55,10 @@ sub run_tasks {
 	
 	my $tasksref = $sql->SelectListOfHashes($self->query);
 	my @tasks = @$tasksref;
+	
+	@tasks = $self->prepare_tasks(@tasks);
+	
 	my $numtasks = scalar @tasks;
-
 	$self->debug("Loaded $numtasks tasks.");
 	
 	foreach my $task (@tasks) {
@@ -76,6 +85,12 @@ sub report_success
 	my $sql = $self->sql;
 	my $schema = $self->schema;
 	
+	if (defined reftype $task) {
+		map { $self->report_success($_) } @{$task};
+		
+		return 1; # Exit without error
+	}	
+	
 	$self->info("Task $task was successful!");
 	$sql->AutoCommit;
 	$sql->Do("UPDATE $schema." . $self->type . " SET date_processed = NOW(), error = NULL WHERE id=$task") or $self->error("Error recording result");
@@ -89,6 +104,12 @@ sub report_failure
 	my $sql = $self->sql;
 	my $schema = $self->schema;
 	
+	if (defined reftype $task) {
+		map { $self->report_failure($_, $message) } @{$task};
+		
+		return 0; # Exit with error
+	}	
+
 	$self->error("Task $task failed: $message");
 	
 	if ($sql->IsInTransaction) {

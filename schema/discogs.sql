@@ -76,7 +76,16 @@ SELECT * FROM discogs.tmp_discogs_trackrole_step_06_ready newedits
 		AND newedits.link0type = edits.link0type
 		AND newedits.link1type = edits.link1type
 		AND newedits.linkgid = edits.linkgid
-		AND newedits.source = edits.source);
+		AND newedits.source = edits.source)
+	AND NOT EXISTS
+	(SELECT 1 FROM discogs.tmp_discogs_trackrole_step_06_ready edits
+		WHERE newedits.link0gid = edits.link0gid
+		AND newedits.link1gid = edits.link1gid
+		AND newedits.link0type = edits.link0type
+		AND newedits.link1type = edits.link1type
+		AND newedits.linkgid = edits.linkgid
+		AND newedits.source = edits.source
+		AND newedits.sourceurl < edits.sourceurl);
 
 DROP TABLE discogs.tmp_discogs_trackrole_step_06_ready;
 
@@ -838,43 +847,6 @@ CREATE TABLE artist (
 
 
 --
--- Name: dmap_artist_collab; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE dmap_artist_collab (
-    mb_artist character(36) NOT NULL,
-    mb_collab character(36) NOT NULL
-);
-
-
---
--- Name: collab_members; Type: VIEW; Schema: discogs; Owner: -
---
-
-CREATE VIEW collab_members AS
-    SELECT c.mb_artist, c.mb_collab, a.name FROM dmap_artist_collab c, musicbrainz.artist a WHERE (c.mb_collab = a.gid);
-
-
---
--- Name: country; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE country (
-    name text NOT NULL
-);
-
-
---
--- Name: discogs_release_url; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE discogs_release_url (
-    discogs_id integer NOT NULL,
-    url character varying(255) NOT NULL
-);
-
-
---
 -- Name: dmap_artist; Type: TABLE; Schema: discogs; Owner: -
 --
 
@@ -909,22 +881,6 @@ CREATE TABLE dmap_track (
 
 
 --
--- Name: track; Type: TABLE; Schema: discogs; Owner: -
---
-
-CREATE TABLE track (
-    discogs_id integer,
-    title text,
-    duration text,
-    "position" text,
-    track_id uuid NOT NULL,
-    albumseq integer DEFAULT 1 NOT NULL,
-    trackseq integer,
-    durationms integer
-);
-
-
---
 -- Name: tracks_extraartists_roles; Type: TABLE; Schema: discogs; Owner: -
 --
 
@@ -938,11 +894,38 @@ CREATE TABLE tracks_extraartists_roles (
 
 
 --
--- Name: credits_artist_track; Type: VIEW; Schema: discogs; Owner: -
+-- Name: both_links_listed; Type: VIEW; Schema: discogs; Owner: -
 --
 
-CREATE VIEW credits_artist_track AS
-    SELECT map_a.mb_artist AS artist, map_t.mb_track AS track, map_r.link_gid AS linktype, url.url AS sourceurl FROM tracks_extraartists_roles txr, dmap_artist map_a, dmap_track map_t, track t, discogs_release_url url, dmap_role_full map_r WHERE (((((((map_a.d_artist = txr.artist_name) AND (COALESCE(map_a.d_alias, ''::text) = COALESCE(txr.artist_alias, ''::text))) AND (map_t.d_track = txr.track_id)) AND (t.track_id = txr.track_id)) AND (url.discogs_id = t.discogs_id)) AND (map_r.role_name = txr.role_name)) AND (COALESCE(map_r.role_details, ''::text) = COALESCE(txr.role_details, ''::text)));
+CREATE VIEW both_links_listed AS
+    SELECT map_a.mb_artist AS artist, map_t.mb_track AS track, map_r1.link_gid AS linktype1, map_r2.link_gid AS linktype2 FROM tracks_extraartists_roles txr1, tracks_extraartists_roles txr2, dmap_artist map_a, dmap_track map_t, dmap_role_full map_r1, dmap_role_full map_r2 WHERE ((((((((((map_a.d_artist = txr1.artist_name) AND (map_a.d_artist = txr2.artist_name)) AND (COALESCE(map_a.d_alias, ''::text) = COALESCE(txr1.artist_alias, ''::text))) AND (COALESCE(map_a.d_alias, ''::text) = COALESCE(txr2.artist_alias, ''::text))) AND (map_t.d_track = txr1.track_id)) AND (txr1.track_id = txr2.track_id)) AND (map_r1.role_name = txr1.role_name)) AND (map_r2.role_name = txr2.role_name)) AND (COALESCE(map_r1.role_details, ''::text) = COALESCE(txr1.role_details, ''::text))) AND (COALESCE(map_r2.role_details, ''::text) = COALESCE(txr2.role_details, ''::text)));
+
+
+--
+-- Name: dmap_artist_collab; Type: TABLE; Schema: discogs; Owner: -
+--
+
+CREATE TABLE dmap_artist_collab (
+    mb_artist character(36) NOT NULL,
+    mb_collab character(36) NOT NULL
+);
+
+
+--
+-- Name: collab_members; Type: VIEW; Schema: discogs; Owner: -
+--
+
+CREATE VIEW collab_members AS
+    SELECT c.mb_artist, c.mb_collab, a.name FROM dmap_artist_collab c, musicbrainz.artist a WHERE (c.mb_collab = a.gid);
+
+
+--
+-- Name: country; Type: TABLE; Schema: discogs; Owner: -
+--
+
+CREATE TABLE country (
+    name text NOT NULL
+);
 
 
 --
@@ -1013,6 +996,16 @@ CREATE TABLE label (
 
 CREATE VIEW discogs_label_url_v AS
     SELECT label.name, (substr(('http://www.discogs.com/label/'::text || replace(urlencode(label.name), '%20'::text, '+'::text)), 0, 255))::character varying(255) AS url FROM label;
+
+
+--
+-- Name: discogs_release_url; Type: TABLE; Schema: discogs; Owner: -
+--
+
+CREATE TABLE discogs_release_url (
+    discogs_id integer NOT NULL,
+    url character varying(255) NOT NULL
+);
 
 
 --
@@ -1183,6 +1176,22 @@ CREATE TABLE releases_labels (
     label text,
     discogs_id integer,
     catno text
+);
+
+
+--
+-- Name: track; Type: TABLE; Schema: discogs; Owner: -
+--
+
+CREATE TABLE track (
+    discogs_id integer,
+    title text,
+    duration text,
+    "position" text,
+    track_id uuid NOT NULL,
+    albumseq integer DEFAULT 1 NOT NULL,
+    trackseq integer,
+    durationms integer
 );
 
 

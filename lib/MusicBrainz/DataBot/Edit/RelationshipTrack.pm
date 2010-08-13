@@ -4,16 +4,48 @@ use Moose;
 use WebService::MusicBrainz::Artist;
 use WebService::MusicBrainz::Track;
 
+use List::Uniq 'uniq';
+
 extends 'MusicBrainz::DataBot::Edit::BaseEditTask';
 
 has '+type' => (default => 'edits_relationship_track');
+
+sub prepare_tasks {
+	my ($self, @edits) = @_;
+	
+	my @keys = qw(link0gid link1gid linktype);
+	my @aggr = qw(id sourceurl attrgid);
+	my %newedits;
+	
+	foreach my $edit (@edits) {
+		my $key = join(':', @{$edit}{@keys});
+		
+		if (exists $newedits{$key}) {
+			my $newedit = $newedits{$key};
+			
+			map { push @{$newedit->{$_}}, $edit->{$_} } @aggr;
+		} else {
+			map { $edit->{$_} = [$edit->{$_}] } @aggr;
+			
+			$newedits{$key} = $edit;
+		}
+	}
+	
+	@edits = values %newedits;
+	
+	foreach my $edit (@edits) {
+		map { $edit->{$_} = uniq {'flatten' => 1}, $edit->{$_} } @aggr;
+	}
+	
+	return sort { $a->{'tracknr'} <=> $b->{'tracknr'} } @edits;
+}
 
 sub run_task {
 	my ($self, $edit) = @_;
 	my $bot = $self->bot;
 	my $sql = $self->sql;
 	
-	$self->debug("Processing edit $edit->{id}");
+	$self->debug('Processing edit ' . join('+', @{$edit->{'id'}}));
 	
 	my $note = $self->note_text($edit);
 	return unless $note;
@@ -75,7 +107,7 @@ sub run_task {
 		}
 	}
 	
-	$self->info("Edit $edit->{id}: Adding relationship $edit->{link0gid}\->$edit->{linkname}\->$edit->{link1gid}");
+	$self->info('Edit ' . join('+', @{$edit->{'id'}}) . ": Adding relationship $edit->{link0gid}\->$edit->{linkname}\->$edit->{link1gid}");
 	
 	$bot->set_fields( 'notetext' => $note );
 	
@@ -148,13 +180,13 @@ sub validate {
 					my $link_is_planned = $sql->SelectSingleValue(
 						$self->select_from(
 							['1',],
-							'discogs.credits_artist_track',
+							'discogs.both_links_listed',
 							{'artist'    => $rel->target,
 							 'track'     => $edit->{'link1gid'},
-							 'sourceurl' => $edit->{'sourceurl'},
-							 'linktype'  => $reltypegid},
+							 'linktype1' => $edit->{'linkgid'},
+							 'linktype2' => $reltypegid},
 							'LIMIT 1'));
-							 
+					
 					next if $link_is_planned;
 					
 					$relmsg = ', existing type is more ' . ($rel_is_higher ? 'general.' : 'specific.');
@@ -172,13 +204,13 @@ sub validate {
 						my $link_is_planned = $sql->SelectSingleValue(
 							$self->select_from(
 								['1',],
-								'discogs.credits_artist_track',
+								'discogs.both_links_listed',
 								{'artist'    => $rel->target,
 								 'track'     => $edit->{'link1gid'},
-								 'sourceurl' => $edit->{'sourceurl'},
-								 'linktype'  => $reltypegid},
+								 'linktype1' => $edit->{'linkgid'},
+								 'linktype2' => $reltypegid},
 								'LIMIT 1'));
-								 
+						
 						next if $link_is_planned;
 						
 						return $self->report_failure($edit->{'id'}, 'Link exists (equiv) with track' . $relmsg);
@@ -198,34 +230,41 @@ sub note_text {
 	my $sql = $self->sql;
 	
 	if ($edit->{'source'} eq 'discogs-trackrole') {
-		my $d_track = $sql->SelectSingleRowHash(
-			$self->select_from(
-				['track_id', 'tracktitle', 'position', 'artist_name', 'role_name',
-				 'role_details', 'reltitle', 'nametext', 'discogs_id', 'mb_original'],
-				'discogs.track_info',
-				{'mb_artist' => $edit->{'link0gid'},
-				 'mb_track'  => $edit->{'link1gid'},
-				 'url'       => $edit->{'sourceurl'},
-				 'link_type' => $edit->{'linktype'}},
-				'LIMIT 1'));
-				 
-		return $self->report_failure($edit->{'id'}, 'Could not retrieve track info for edit note') unless defined $d_track;
+		my $note = "Discogs has:\n";
+		my $d_track;
+		my $discogsrefs;
 		
-		my $num_otherartists = $sql->SelectSingleValue(
-			$self->select_from(
-				['COUNT(DISTINCT artist_name)'],
-				'discogs.discogs_credits_for_track',
-				{'track_id'        => $d_track->{'track_id'},
-				 'artist_name <> ' => $d_track->{'artist_name'},
-				 'link_type'       => $edit->{'linktype'}}));
+		foreach my $sourceurl (@{$edit->{'sourceurl'}}) {
+			$d_track = $sql->SelectSingleRowHash(
+				$self->select_from(
+					['track_id', 'tracktitle', 'position', 'artist_name', 'role_name',
+					 'role_details', 'reltitle', 'nametext', 'discogs_id', 'mb_original'],
+					'discogs.track_info',
+					{'mb_artist' => $edit->{'link0gid'},
+					 'mb_track'  => $edit->{'link1gid'},
+					 'url'       => $sourceurl,
+					 'link_type' => $edit->{'linktype'}},
+					'LIMIT 1'));
+					 
+			return $self->report_failure($edit->{'id'}, 'Could not retrieve track info for edit note') unless defined $d_track;
+		
+			my $num_otherartists = $sql->SelectSingleValue(
+				$self->select_from(
+					['COUNT(DISTINCT artist_name)'],
+					'discogs.discogs_credits_for_track',
+					{'track_id'        => $d_track->{'track_id'},
+					 'artist_name <> ' => $d_track->{'artist_name'},
+					 'link_type'       => $edit->{'linktype'}}));
 			
-		my $roletext = "$d_track->{role_name}" . ($d_track->{'role_details'} ? " ($d_track->{role_details})" : '');
-		my $tracktext = ($d_track->{'position'} ? $d_track->{'position'} . '. ' : '') . $d_track->{'tracktitle'};
+			my $roletext = "$d_track->{role_name}" . ($d_track->{'role_details'} ? " ($d_track->{role_details})" : '');
+			my $tracktext = ($d_track->{'position'} ? $d_track->{'position'} . '. ' : '') . $d_track->{'tracktitle'};
 		
-		my $note = "Discogs has:\n"
-				. "$tracktext - $roletext: $d_track->{nametext}"
+			$note .= "$tracktext - $roletext: $d_track->{nametext}"
 				. ($num_otherartists ? " (+ $num_otherartists other" . ($num_otherartists > 1 ? 's' : '') . ')' : '')
 				. "\n\n";
+			
+			$discogsrefs .= "* Discogs - $d_track->{reltitle}: $sourceurl\n";
+		}
 			
 		if (defined $d_track->{'mb_original'}) {
 			my $collaborators = $sql->SelectSingleColumnArray(
@@ -249,7 +288,7 @@ sub note_text {
 
 		$note .= "References:\n"
 			. "* MusicBrainz - $mbrel->{name}: http://musicbrainz.org/release/$mbrel->{gid}.html\n"
-			. "* Discogs - $d_track->{reltitle}: $edit->{sourceurl}\n";
+			. $discogsrefs;
 
 		return $note;
 	} else {
