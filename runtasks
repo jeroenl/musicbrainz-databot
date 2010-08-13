@@ -2,6 +2,9 @@
 
 use strict;
 use warnings;
+use feature 'switch';
+
+use Carp qw(croak);
 
 use lib "$ENV{HOME}/mb/bot/lib";
 use lib "$ENV{HOME}/mb/server/cgi-bin";
@@ -18,8 +21,6 @@ my $mb = MusicBrainz->new;
 $mb->Login();
 my $sql = Sql->new($mb->{DBH});
 
-my $editsbefore = $sql->SelectSingleValue('SELECT COUNT(*) FROM mbot.edits');
-
 my $tasks = $sql->SelectListOfHashes('SELECT schema, task FROM mbot.tasks WHERE last_replication + frequency <= mbot.replseq() ORDER BY priority, task');
 
 foreach my $taskrow (@{$tasks}) {
@@ -28,32 +29,35 @@ foreach my $taskrow (@{$tasks}) {
 	
 	$log->info(localtime() . " : Running task '$task'.\n");
 	
-	if ($task =~ /^upd_(.*)/) {
-		my $tasktable = $1;
-		my $beforecount = $sql->SelectSingleValue("SELECT COUNT(*) FROM $schema.$tasktable");
+	my $tasktable;
+	my $taskschema = $schema;
+	
+	my $countdiff = 1;
+	
+	given ($task) {
+		when (/^upd_(.*)/) { $tasktable = $1; }
+		when (/^(tmp_.*)/) { $tasktable = $1; $countdiff = 0; }
+		when (/^find_edits/) { $tasktable = 'edits'; $taskschema = 'mbot'; }
+		when (/^find_spider/) { $tasktable = 'tasks'; $taskschema = 'mspider'; }
 		
-		$sql->SelectSingleValue("SELECT $schema.$task()");
-		
-		my $aftercount  = $sql->SelectSingleValue("SELECT COUNT(*) FROM $schema.$tasktable");
-		my $diff = $aftercount - $beforecount;
-		if ($diff >= 0) { $diff = '+' . $diff; }
-		$log->info(localtime() . " : Row count = $diff\n");
-	} elsif ($task =~ /^(tmp_.*)/) {
-		my $tasktable = $1;
-		$sql->SelectSingleValue("SELECT $schema.$task()");
-		
-		my $aftercount  = $sql->SelectSingleValue("SELECT COUNT(*) FROM $schema.$tasktable");
-		$log->info(localtime() . " : Row count = $aftercount\n");
-	} else {
-		$sql->SelectSingleValue("SELECT $schema.$task()");
+		default { croak 'Unknown task type'; }
 	}
+	
+	my $beforecount = $sql->SelectSingleValue("SELECT COUNT(*) FROM $taskschema.$tasktable") if $countdiff;
+	
+	$sql->SelectSingleValue("SELECT $schema.$task()");
+	
+	my $aftercount  = $sql->SelectSingleValue("SELECT COUNT(*) FROM $taskschema.$tasktable");
+	my $diff;
+	
+	if ($countdiff) {
+		$diff = $aftercount - $beforecount;
+		if ($diff >= 0) { $diff = '+' . $diff; }
+	} else {
+		$diff = $aftercount;
+	}
+	
+	$log->info(localtime() . " : Row count = $diff\n");
 }
 
-my $editsafter = $sql->SelectSingleValue('SELECT COUNT(*) FROM mbot.edits');
-my $editsdiff = $editsafter - $editsbefore;
-
-my $status = 'No new edits.';
-if ($editsdiff > 0) { $status = "$editsdiff new edits."; }
-elsif ($editsdiff < 0) { $editsdiff = -$editsdiff; $status = "$editsdiff edits removed."; }
-
-$log->info(localtime() . " : Done. $status\n");
+$log->info(localtime() . " : Done.\n");
