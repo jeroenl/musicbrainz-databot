@@ -434,7 +434,7 @@ CREATE VIEW batch_edits_artist_typechange AS
 --
 
 CREATE VIEW batch_edits_relationship_track AS
-    SELECT e.id, e.link0gid, e.link0type, e.link1gid, e.link1type, l.id AS linktype, l.linkphrase, l.name AS linkname, e.release, e.source, e.sourceurl, e.linkgid, e.attrgid FROM edits_relationship_track e, musicbrainz.lt_artist_track l, musicbrainz.track t, musicbrainz.albumjoin aj WHERE ((((((e.linkgid = (l.mbid)::uuid) AND (e.date_processed IS NULL)) AND (e.release = (SELECT min(edits_relationship_track.release) AS min FROM edits_relationship_track WHERE (edits_relationship_track.date_processed IS NULL)))) AND (t.gid = e.link1gid)) AND (aj.album = e.release)) AND (aj.track = t.id)) ORDER BY aj.sequence, e.id;
+    SELECT e.id, e.link0gid, e.link0type, e.link1gid, e.link1type, l.id AS linktype, l.linkphrase, l.name AS linkname, e.release, e.source, e.sourceurl, e.linkgid, e.attrgid, aj.sequence AS tracknr FROM edits_relationship_track e, musicbrainz.lt_artist_track l, musicbrainz.track t, musicbrainz.albumjoin aj WHERE ((((((e.linkgid = (l.mbid)::uuid) AND (e.date_processed IS NULL)) AND (e.release = (SELECT min(edits_relationship_track.release) AS min FROM edits_relationship_track WHERE (edits_relationship_track.date_processed IS NULL)))) AND (t.gid = e.link1gid)) AND (aj.album = e.release)) AND (aj.track = t.id)) ORDER BY aj.sequence, e.id;
 
 
 --
