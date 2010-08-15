@@ -17,9 +17,8 @@ our %freq =
 	 mbreplicate => 3600,
 	 
 	 # runspider
-	 flyquery => 900,
 	 discogsapi => 5,
-	 nodiscogs => 3600
+	 nodiscogs => 300
 	 );
 our $sysstarttime = time();
 our %lastrun = ();
