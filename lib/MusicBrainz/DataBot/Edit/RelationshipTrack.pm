@@ -10,6 +10,8 @@ use Clone qw(clone);
 extends 'MusicBrainz::DataBot::Edit::BaseEditTask';
 
 has '+type' => (default => 'edits_relationship_track');
+has 'ws' => (is => 'ro', default => sub { WebService::MusicBrainz::Track->new } );
+has 'cache' => (is => 'ro', isa => 'HashRef', default => sub { { track => '' } });
 
 sub prepare_tasks {
 	my ($self, @edits) = @_;
@@ -149,15 +151,22 @@ sub run_task {
 sub validate {
 	my ($self, $edit) = @_;
 	my $sql = $self->sql;
+	my $cache = $self->cache;
 	
 	if ($edit->{'source'} eq 'discogs-trackrole') {
-		my $ws = WebService::MusicBrainz::Track->new;
-		$self->throttle('mbapi');
-		my $track = $ws->search({ MBID => $edit->{'link1gid'}, INC => "$edit->{link0type}-rels" });
-		$self->report_failure($edit->{'id'}, 'Could not find track on MusicBrainz WS') unless defined $track;
-		$track = $track->track;
-		
-		$edit->{'ws1'} = $track;
+		my $track;
+		if ($cache->{'track'} eq $edit->{'link1gid'}) {
+			$track = $cache->{'trackws'};
+		} else {
+			$self->throttle('mbapi');
+			my $ws = $self->ws;
+			$track = $ws->search({ MBID => $edit->{'link1gid'}, INC => "$edit->{link0type}-rels" });
+			$self->report_failure($edit->{'id'}, 'Could not find track on MusicBrainz WS') unless defined $track;
+			$track = $track->track;
+			
+			$cache->{'trackws'} = $track;
+			$cache->{'track'} = $edit->{'link1gid'};
+		}
 		
 		my $artist_equiv = $sql->SelectSingleColumnArray("SELECT equiv FROM mbot.mbmap_artist_equiv WHERE artist='$edit->{link0gid}'");
 		my $artist_equiv_rev = $sql->SelectSingleColumnArray("SELECT artist FROM mbot.mbmap_artist_equiv WHERE equiv='$edit->{link0gid}'");
