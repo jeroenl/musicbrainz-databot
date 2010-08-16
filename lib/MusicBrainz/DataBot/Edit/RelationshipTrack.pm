@@ -115,7 +115,8 @@ sub run_task {
 				unless (defined $nextfield) {
 					$nextfield = clone $field;
 					$nextfield->{'name'} = $fieldname;
-					$edit_form->push_input('option', $nextfield);
+					$nextfield->{'current'} = 0;
+					push @{$edit_form->{'inputs'}}, $nextfield;
 				}
 				
 				$field = $nextfield;
@@ -254,9 +255,10 @@ sub note_text {
 		my $note = "Discogs has:\n";
 		my $d_track;
 		my $discogsrefs;
+		my @tracklines;
 		
 		foreach my $sourceurl (@{$edit->{'sourceurl'}}) {
-			$d_track = $sql->SelectSingleRowHash(
+			my $d_tracks = $sql->SelectListOfHashes(
 				$self->select_from(
 					['track_id', 'tracktitle', 'position', 'artist_name', 'role_name',
 					 'role_details', 'reltitle', 'nametext', 'discogs_id', 'mb_original'],
@@ -264,28 +266,24 @@ sub note_text {
 					{'mb_artist' => $edit->{'link0gid'},
 					 'mb_track'  => $edit->{'link1gid'},
 					 'url'       => $sourceurl,
-					 'link_type' => $edit->{'linktype'}},
-					'LIMIT 1'));
-					 
-			return $self->report_failure($edit->{'id'}, 'Could not retrieve track info for edit note') unless defined $d_track;
+					 'link_type' => $edit->{'linktype'}}));
+					
+			return $self->report_failure($edit->{'id'}, 'Could not retrieve track info for edit note') unless defined $d_tracks;
+
+			foreach $d_track (@{$d_tracks}) {
+				my $roletext = "$d_track->{role_name}" . ($d_track->{'role_details'} ? " ($d_track->{role_details})" : '');
+				my $tracktext = ($d_track->{'position'} ? $d_track->{'position'} . '. ' : '') . $d_track->{'tracktitle'};
+				$tracktext =~ s/^0+//;
 		
-			my $num_otherartists = $sql->SelectSingleValue(
-				$self->select_from(
-					['COUNT(DISTINCT artist_name)'],
-					'discogs.discogs_credits_for_track',
-					{'track_id'        => $d_track->{'track_id'},
-					 'artist_name <> ' => $d_track->{'artist_name'},
-					 'link_type'       => $edit->{'linktype'}}));
+				push @tracklines, "$tracktext - $roletext: $d_track->{nametext}\n";
+			}
 			
-			my $roletext = "$d_track->{role_name}" . ($d_track->{'role_details'} ? " ($d_track->{role_details})" : '');
-			my $tracktext = ($d_track->{'position'} ? $d_track->{'position'} . '. ' : '') . $d_track->{'tracktitle'};
-		
-			$note .= "$tracktext - $roletext: $d_track->{nametext}"
-				. ($num_otherartists ? " (+ $num_otherartists other" . ($num_otherartists > 1 ? 's' : '') . ')' : '')
-				. "\n\n";
-			
+			$d_track = @{$d_tracks}[0];
 			$discogsrefs .= "* Discogs - $d_track->{reltitle}: $sourceurl\n";
 		}
+		
+		@tracklines = uniq @tracklines;
+		$note .= join('', @tracklines) . "\n";
 			
 		if (defined $d_track->{'mb_original'}) {
 			my $collaborators = $sql->SelectSingleColumnArray(

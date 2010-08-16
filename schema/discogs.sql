@@ -76,16 +76,8 @@ SELECT * FROM discogs.tmp_discogs_trackrole_step_06_ready newedits
 		AND newedits.link0type = edits.link0type
 		AND newedits.link1type = edits.link1type
 		AND newedits.linkgid = edits.linkgid
-		AND newedits.source = edits.source)
-	AND NOT EXISTS
-	(SELECT 1 FROM discogs.tmp_discogs_trackrole_step_06_ready edits
-		WHERE newedits.link0gid = edits.link0gid
-		AND newedits.link1gid = edits.link1gid
-		AND newedits.link0type = edits.link0type
-		AND newedits.link1type = edits.link1type
-		AND newedits.linkgid = edits.linkgid
-		AND newedits.source = edits.source
-		AND newedits.sourceurl < edits.sourceurl);
+		AND newedits.attrgid <@ edits.attrgid
+		AND newedits.source = edits.source);
 
 DROP TABLE discogs.tmp_discogs_trackrole_step_06_ready;
 
@@ -454,7 +446,7 @@ INSERT INTO discogs.tmp_role_attr
 (role_name, role_details, attr_gid)
 SELECT DISTINCT t.role_name, t.role_details, at.mbid::uuid attr_gid
   FROM discogs.tmp_role_list t, discogs.dmap_role r, musicbrainz.link_attribute_type at
- WHERE to_tsvector('mbot.english_nostop', t.role_details) @@ role_query
+ WHERE to_tsvector('mbot.english_nostop', t.role_details || ' ' || t.role_name) @@ role_query
    AND r.attr_name IS NOT NULL
    AND r.attr_name = TRIM(at.name)
    AND NOT EXISTS 
@@ -509,7 +501,7 @@ INSERT INTO discogs.tmp_role_link
 (role_name, role_details, link_gid)
 SELECT DISTINCT t.role_name, t.role_details, l.mbid::uuid link_gid
   FROM discogs.tmp_role_link t, discogs.dmap_role r, musicbrainz.lt_artist_track l
- WHERE to_tsvector('mbot.english_nostop', t.role_details) @@ role_query
+ WHERE to_tsvector('mbot.english_nostop', t.role_details || ' ' || t.role_name) @@ role_query
    AND l.name = r.link_name
    AND r.link_name IS NOT NULL
    AND NOT EXISTS 
@@ -981,7 +973,8 @@ CREATE TABLE dmap_role (
     role_name text NOT NULL,
     link_name character varying(50),
     role_query tsquery,
-    attr_name character varying(255)
+    attr_name character varying(255),
+    source character varying(25) DEFAULT 'manual'::character varying NOT NULL
 );
 
 
