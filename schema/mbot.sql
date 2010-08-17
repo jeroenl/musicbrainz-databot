@@ -480,7 +480,7 @@ CREATE TABLE mb_link_type_descs (
 --
 
 CREATE TABLE tasks (
-    task character varying(40) NOT NULL,
+    task character varying(50) NOT NULL,
     last_replication integer DEFAULT 0 NOT NULL,
     frequency integer DEFAULT 1 NOT NULL,
     priority integer DEFAULT 100 NOT NULL,

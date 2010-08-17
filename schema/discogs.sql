@@ -248,7 +248,8 @@ INSERT INTO discogs.tmp_discogs_trackrole_step_01_artist
 SELECT a.id mb_artist, role_name, role_details, track_id
   FROM discogs.tracks_extraartists_roles x, discogs.dmap_artist da, musicbrainz.artist a
  WHERE artist_name = d_artist AND COALESCE(artist_alias,'') = COALESCE(d_alias,'') 
-   AND gid = mb_artist;
+   AND gid = mb_artist
+   AND NOT is_disc_role;
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackrole_step_01_artist';
 
@@ -908,7 +909,8 @@ CREATE TABLE tracks_extraartists_roles (
     role_name text,
     role_details text,
     track_id uuid NOT NULL,
-    artist_alias text
+    artist_alias text,
+    is_disc_role boolean DEFAULT false NOT NULL
 );
 
 
