@@ -268,7 +268,7 @@ sub note_text {
 					 'url'       => $sourceurl,
 					 'link_type' => $edit->{'linktype'}}));
 					
-			return $self->report_failure($edit->{'id'}, 'Could not retrieve track info for edit note') unless defined $d_tracks;
+			return $self->report_failure($edit->{'id'}, 'Could not retrieve track info for edit note') unless @$d_tracks;
 
 			foreach $d_track (@{$d_tracks}) {
 				my $roletext = "$d_track->{role_name}" . ($d_track->{'role_details'} ? " ($d_track->{role_details})" : '');
