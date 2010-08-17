@@ -692,11 +692,11 @@ AND mb_artist !=
 		where gid=map_in.mb_artist and map_in.d_artist=map_out.d_artist 
 		and COALESCE(map_in.d_alias,'')=COALESCE(map_out.d_alias ,'') 
 		order by least(
-			levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), name, 1, 10, 10),
+			levenshtein(LOWER(COALESCE(map_in.d_alias, map_in.d_artist)), LOWER(name), 1, 10, 10),
 			(select 
-				min(levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), alias.name, 1, 10, 10))
+				min(levenshtein(LOWER(COALESCE(map_in.d_alias, map_in.d_artist)), LOWER(alias.name), 1, 10, 10))
 			 from musicbrainz.artistalias alias where alias.ref = artist.id)),
-			 levenshtein(COALESCE(map_in.d_alias, map_in.d_artist), name, 1, 10, 10)
+			 levenshtein(LOWER(COALESCE(map_in.d_alias, map_in.d_artist)), LOWER(name), 1, 10, 10)
 	 asc limit 1);
 
 -- Replace all collaborations with '&' in the name with the individual collaborators
