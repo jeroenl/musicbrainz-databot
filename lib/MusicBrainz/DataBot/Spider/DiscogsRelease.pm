@@ -75,6 +75,8 @@ sub run_task {
 	
 	my @track_ids;
 	my @positions;
+	my @albumseqs;
+	my @disctrackcount;
 	
 	my $albumseq = 0;
 	my $trackseq = 0;
@@ -106,6 +108,9 @@ sub run_task {
 			$albumseq = 1;
 			$albumseq_enabled = 0;
 		}
+		
+		push @albumseqs, $albumseq;
+		$disctrackcount[$albumseq]++;
 		
 		$self->debug("$track->{position}. $track->{title}");
 		
@@ -177,6 +182,9 @@ sub run_task {
 					
 					$self->debug_role($posstr, $artist, $role_name, $role_details);
 					
+					my @matchingtracks;
+					my @roledisctrackcount;
+					
 					my $found = 0;
 					for (my $i=0;$i<=$#track_ids;$i++) {
 						if (!$found && $positions[$i] eq $first) {
@@ -184,13 +192,8 @@ sub run_task {
 						}
 						
 						if ($found) {
-							$sql->InsertRow('discogs.tracks_extraartists_roles',
-								{track_id => $track_ids[$i],
-								 role_name => $role_name,
-								 role_details => $role_details,
-								 artist_name => $artist->{'name'},
-								 artist_alias => $artist->{'anv'}
-								});
+							push @matchingtracks, $i;
+							$roledisctrackcount[$albumseqs[$i]]++;
 						}
 						
 						if ($found && (!defined $last || $positions[$i] eq $last)) {
@@ -202,6 +205,19 @@ sub run_task {
 					if ($found != 2) {
 						return $self->report_failure($task->{'id'}, "Could not match track range: $trackrange");
 					}
+					
+					foreach my $i (@matchingtracks) {
+						$sql->InsertRow('discogs.tracks_extraartists_roles',
+							{track_id => $track_ids[$i],
+							 role_name => $role_name,
+							 role_details => $role_details,
+							 artist_name => $artist->{'name'},
+							 artist_alias => $artist->{'anv'},
+							 is_disc_role => ($roledisctrackcount[$albumseqs[$i]] 
+							 			== $disctrackcount[$albumseqs[$i]]) ? 1 : 0
+							});
+					}
+
 				}
 			} else {
 				$self->debug_role('*', $artist, $role_name, $role_details);
