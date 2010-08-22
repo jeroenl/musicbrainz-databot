@@ -828,6 +828,27 @@ $$;
 
 
 --
+-- Name: urldecode(text); Type: FUNCTION; Schema: discogs; Owner: -
+--
+
+CREATE FUNCTION urldecode(INOUT string text) RETURNS text
+    LANGUAGE plpgsql STABLE
+    AS $$
+DECLARE
+	charsmatch RECORD;
+	escapedchars text;
+BEGIN
+escapedchars := '((?:%[A-F0-9]{2})+)';
+IF (string ~ escapedchars) THEN
+	FOR charsmatch IN SELECT DISTINCT m[1] charmatch, convert_from(decode(replace(m[1], '%', ''), 'hex'), 'UTF8') charreplace FROM regexp_matches(string, escapedchars, 'g') m LOOP
+		string := replace(string, charsmatch.charmatch, charsmatch.charreplace);
+	END LOOP;
+END IF;
+string := replace(string, '+', ' ');
+END;$$;
+
+
+--
 -- Name: urlencode(text); Type: FUNCTION; Schema: discogs; Owner: -
 --
 
@@ -838,13 +859,28 @@ DECLARE
 	charsmatch RECORD;
 	forbiddenchars text;
 BEGIN
-forbiddenchars := '[^-_.()a-zA-Z0-9]+';
+forbiddenchars := '[^-_,.()a-zA-Z0-9]';
 IF (string ~ forbiddenchars) THEN
-	FOR charsmatch IN select m[1] charmatch, upper(regexp_replace(encode(replace(m[1], E'\\', E'\\\\')::bytea,'hex'),'(.{2})',E'%\\1', 'g')) charreplace from regexp_matches(string, forbiddenchars, 'g') m LOOP
+	FOR charsmatch IN SELECT DISTINCT m[1] charmatch, upper(regexp_replace(encode(replace(m[1], E'\\', E'\\\\')::bytea,'hex'),'(.{2})',E'%\\1', 'g')) charreplace FROM regexp_matches(string, forbiddenchars, 'g') m LOOP
 		string := replace(string, charsmatch.charmatch, charsmatch.charreplace);
 	END LOOP;
 END IF;
+string := replace(string, '%20', '+');
 END;$$;
+
+
+--
+-- Name: urlrecode(text); Type: FUNCTION; Schema: discogs; Owner: -
+--
+
+CREATE FUNCTION urlrecode(INOUT string text) RETURNS text
+    LANGUAGE plpgsql STABLE
+    AS $_$
+BEGIN
+SELECT m[1] || discogs.urlencode(discogs.urldecode(m[2])) INTO string FROM regexp_matches(string, '(.*/)([^/]+)$') m;
+EXCEPTION 
+	WHEN OTHERS THEN
+END;$_$;
 
 
 SET default_with_oids = false;
@@ -964,7 +1000,7 @@ CREATE TABLE discogs_artist_url (
 --
 
 CREATE VIEW discogs_artist_url_v AS
-    SELECT artist.name, (substr(('http://www.discogs.com/artist/'::text || replace(urlencode(artist.name), '%20'::text, '+'::text)), 0, 255))::character varying(255) AS url FROM artist;
+    SELECT artist.name, (substr(('http://www.discogs.com/artist/'::text || urlencode(artist.name)), 0, 255))::character varying(255) AS url FROM artist;
 
 
 --
@@ -1017,7 +1053,7 @@ CREATE TABLE label (
 --
 
 CREATE VIEW discogs_label_url_v AS
-    SELECT label.name, (substr(('http://www.discogs.com/label/'::text || replace(urlencode(label.name), '%20'::text, '+'::text)), 0, 255))::character varying(255) AS url FROM label;
+    SELECT label.name, (substr(('http://www.discogs.com/label/'::text || urlencode(label.name)), 0, 255))::character varying(255) AS url FROM label;
 
 
 --
@@ -1059,7 +1095,7 @@ CREATE VIEW discogs_release_url_v AS
 --
 
 CREATE VIEW dmap_artist_v AS
-    SELECT a.gid AS mb_artist, l.name AS d_artist FROM discogs_artist_url l, musicbrainz.l_artist_url lu, musicbrainz.url u, musicbrainz.artist a, musicbrainz.lt_artist_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND ("substring"((u.url)::text, '^[^?]+'::text) = (l.url)::text));
+    SELECT a.gid AS mb_artist, l.name AS d_artist FROM discogs_artist_url l, musicbrainz.l_artist_url lu, musicbrainz.url u, musicbrainz.artist a, musicbrainz.lt_artist_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND (urlrecode("substring"((u.url)::text, '^[^?]+'::text)) = (l.url)::text));
 
 
 --
@@ -1077,7 +1113,7 @@ CREATE TABLE dmap_label (
 --
 
 CREATE VIEW dmap_label_v AS
-    SELECT a.gid AS mb_label, l.name AS d_label FROM discogs_label_url l, musicbrainz.l_label_url lu, musicbrainz.url u, musicbrainz.label a, musicbrainz.lt_label_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND ((l.url)::text = (u.url)::text));
+    SELECT a.gid AS mb_label, l.name AS d_label FROM discogs_label_url l, musicbrainz.l_label_url lu, musicbrainz.url u, musicbrainz.label a, musicbrainz.lt_label_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND (urlrecode("substring"((l.url)::text, '^[^?]+'::text)) = (u.url)::text));
 
 
 --
