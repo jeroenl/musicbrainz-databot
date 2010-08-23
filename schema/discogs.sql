@@ -1095,7 +1095,7 @@ CREATE VIEW discogs_release_url_v AS
 --
 
 CREATE VIEW dmap_artist_v AS
-    SELECT a.gid AS mb_artist, l.name AS d_artist FROM discogs_artist_url l, musicbrainz.l_artist_url lu, musicbrainz.url u, musicbrainz.artist a, musicbrainz.lt_artist_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND (urlrecode("substring"((u.url)::text, '^[^?]+'::text)) = (l.url)::text));
+    SELECT a.gid AS mb_artist, l.name AS d_artist FROM discogs_artist_url l, musicbrainz.l_artist_url lu, musicbrainz.url u, musicbrainz.artist a, musicbrainz.lt_artist_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND (lower(urlrecode("substring"((u.url)::text, '^[^?]+'::text))) = lower((l.url)::text)));
 
 
 --
@@ -1113,7 +1113,7 @@ CREATE TABLE dmap_label (
 --
 
 CREATE VIEW dmap_label_v AS
-    SELECT a.gid AS mb_label, l.name AS d_label FROM discogs_label_url l, musicbrainz.l_label_url lu, musicbrainz.url u, musicbrainz.label a, musicbrainz.lt_label_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND (urlrecode("substring"((l.url)::text, '^[^?]+'::text)) = (u.url)::text));
+    SELECT a.gid AS mb_label, l.name AS d_label FROM discogs_label_url l, musicbrainz.l_label_url lu, musicbrainz.url u, musicbrainz.label a, musicbrainz.lt_label_url lt WHERE (((((lu.link0 = a.id) AND (lu.link_type = lt.id)) AND ((lt.name)::text = 'discogs'::text)) AND (lu.link1 = u.id)) AND (lower(urlrecode("substring"((l.url)::text, '^[^?]+'::text))) = lower((u.url)::text)));
 
 
 --
