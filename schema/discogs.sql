@@ -105,8 +105,7 @@ SELECT DISTINCT substring(u.url from '[0-9]+$')::integer as discogs_id
    AND NOT EXISTS (
 	SELECT 1 
 	  FROM mspider.tasks_discogs_release t
-	 WHERE t.discogs_id = substring(u.url from '[0-9]+$')::integer)
-	 limit 100;
+	 WHERE t.discogs_id = substring(u.url from '[0-9]+$')::integer);
 	 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='find_spider_discogs_release';
 
