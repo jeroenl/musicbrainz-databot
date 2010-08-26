@@ -3,6 +3,8 @@ package MusicBrainz::DataBot::Spider::DiscogsRelease;
 use Moose;
 use WWW::Discogs;
 
+use List::Uniq 'uniq';
+
 extends 'MusicBrainz::DataBot::Spider::BaseSpiderTask';
 
 has 'discogs' => (is => 'ro', lazy => 1, builder => '_build_discogs');
@@ -31,6 +33,9 @@ sub run_task {
 
 	$sql->Begin;
 	$sql->Do('DELETE FROM discogs.release WHERE discogs_id=' . int($release->{'id'}));
+	$sql->Commit;
+	
+	$sql->Begin;
 	
 	$sql->InsertRow('discogs.release', 
 		{discogs_id => $release->{'id'},
@@ -48,21 +53,23 @@ sub run_task {
 		 url => 'http://www.discogs.com/release/' . $release->{'id'}
 		});
 		 
-	foreach my $artist (@{$release->{'artists'}->{'artist'}}) {
+	foreach my $artist (uniq @{$release->{'artists'}->{'artist'}}) {
 		$sql->InsertRow('discogs.releases_artists',
 			{discogs_id => $release->{'id'},
 			 artist_name => $artist->{'name'}
 			});
 		$self->debug("Artist: $artist->{name}");
 	}
-		 
-	foreach my $format (@{$release->{'formats'}->{'format'}}) {
-		$sql->InsertRow('discogs.releases_formats',
-			{discogs_id => $release->{'id'},
-			 format_name => $format->{'name'},
-			 qty => $format->{'qty'},
-			 descriptions => $self->quote_array($format->{'descriptions'}->{'description'})
-			});
+	
+	if ($release->{'formats'}) {
+		foreach my $format (@{$release->{'formats'}->{'format'}}) {
+			$sql->InsertRow('discogs.releases_formats',
+				{discogs_id => $release->{'id'},
+				 format_name => $format->{'name'},
+				 qty => $format->{'qty'},
+				 descriptions => $self->quote_array($format->{'descriptions'}->{'description'})
+				});
+		}
 	}
 	
 	foreach my $label (@{$release->{'labels'}->{'label'}}) {
@@ -153,6 +160,8 @@ sub run_task {
 		}
 	}
 	
+	my $positionchars = join '', @positions;
+	
 	foreach my $artist (@{$release->{'extraartists'}->{'artist'}}) {
 		foreach my $role ($artist->{'role'} =~ /([^, ]+[^[,]*(?:\[[^]]+])?)+/g) {
 			my $role_name = $role;
@@ -163,14 +172,20 @@ sub run_task {
 				$role_details = $2;
 			}
 			
-			if (defined $artist->{'tracks'}) {
+			if (defined $artist->{'tracks'} && $artist->{'tracks'} ne 'CD') {
+				$artist->{'tracks'} =~ s/[&;]/,/g;
+				$artist->{'tracks'} =~ s/([A-NP-Z0-9]) ([A-SU-Z0-9])/$1,$2/gi unless $positionchars =~ / /;
+			
 				foreach my $trackrange (split ',', $artist->{'tracks'}) {
 					$trackrange =~ s/^ +//;
+					$trackrange =~ s/ +$//;
 					
 					my $first = $trackrange;
 					my $last;
 					
-					if ($trackrange =~ /(.*) to (.*)/ || $trackrange =~ /(.*) - (.*)/) {
+					if ($trackrange =~ /(.*) to (.*)/i || $trackrange =~ /(.*) - (.*)/
+						|| $trackrange =~ /(.*)- (.*)/ || $trackrange =~ /(.*) -(.*)/
+						|| (!($positionchars =~ /-/) && $trackrange =~ /(.*)-(.*)/)) {
 						$first = $1;
 						$last = $2;
 					}
@@ -187,7 +202,13 @@ sub run_task {
 					
 					my $found = 0;
 					for (my $i=0;$i<=$#track_ids;$i++) {
-						if (!$found && $positions[$i] eq $first) {
+						my $posstr = $positions[$i];
+						
+						$posstr = $self->clean_position($posstr);
+						$first = $self->clean_position($first);
+						$last = $self->clean_position($last) if defined $last;
+						
+						if (!$found && $posstr eq $first) {
 							$found = 1;
 						}
 						
@@ -196,7 +217,7 @@ sub run_task {
 							$roledisctrackcount[$albumseqs[$i]]++;
 						}
 						
-						if ($found && (!defined $last || $positions[$i] eq $last)) {
+						if ($found && (!defined $last || $posstr eq $last)) {
 							$found = 2;
 							last;
 						}
@@ -236,6 +257,16 @@ sub run_task {
 	$sql->Commit;
 		 
 	return $self->report_success($task->{'id'});
+}
+
+sub clean_position {
+	my ($self, $pos) = @_;
+	
+	$pos =~ s/^(CD)?0*//;
+	$pos =~ s/\.0+/./g;
+	$pos =~ s/-0+/-/g;
+	
+	return $pos;
 }
 
 sub debug_role {
