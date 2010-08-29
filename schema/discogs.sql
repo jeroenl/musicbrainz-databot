@@ -134,20 +134,23 @@ CREATE FUNCTION tmp_discogs_trackmap_step_01() RETURNS void
     AS $$
 BEGIN
 
-create table discogs.tmp_discogs_trackmap_step_01
+CREATE TABLE discogs.tmp_discogs_trackmap_step_01
 (
-d_track uuid not null,
-d_release integer not null,
-mb_release integer not null,
-title text not null,
-d_length integer,
-dpos integer not null
+	d_track uuid NOT NULL,
+	d_release integer NOT NULL,
+	mb_release integer NOT NULL,
+	title text NOT NULL,
+	d_length integer,
+	dpos integer NOT NULL
 );
 
-insert into discogs.tmp_discogs_trackmap_step_01
-select t.track_id d_track, t.discogs_id d_release, a.id mb_release, title, durationms d_length, trackseq
-from discogs.track t, discogs.dmap_release dr, musicbrainz.album a
-where dr.d_release = t.discogs_id and a.gid = dr.mb_release;
+INSERT INTO discogs.tmp_discogs_trackmap_step_01
+SELECT t.track_id d_track, t.discogs_id d_release, a.id mb_release, 
+	title, durationms d_length, trackseq
+  FROM discogs.track t, discogs.dmap_release dr, musicbrainz.album a, 
+	mbot.mb_release_discnrs nr
+ WHERE dr.d_release = t.discogs_id AND a.gid = dr.mb_release
+   AND nr.gid = a.gid::uuid AND nr.discnr = t.albumseq;
 
 UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='tmp_discogs_trackmap_step_01';
 

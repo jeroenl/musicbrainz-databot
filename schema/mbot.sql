@@ -176,6 +176,24 @@ $_$;
 
 
 --
+-- Name: upd_mb_release_discnrs(); Type: FUNCTION; Schema: mbot; Owner: -
+--
+
+CREATE FUNCTION upd_mb_release_discnrs() RETURNS void
+    LANGUAGE sql
+    AS $$
+
+TRUNCATE mbot.mb_release_discnrs;
+
+INSERT INTO mbot.mb_release_discnrs
+SELECT * FROM mbot.mb_release_discnrs_v;
+
+UPDATE mbot.tasks SET last_replication=mbot.replseq() WHERE task='upd_mb_release_discnrs';
+
+$$;
+
+
+--
 -- Name: upd_mbmap_artist_equiv(); Type: FUNCTION; Schema: mbot; Owner: -
 --
 
@@ -476,6 +494,24 @@ CREATE TABLE mb_link_type_descs (
 
 
 --
+-- Name: mb_release_discnrs; Type: TABLE; Schema: mbot; Owner: -
+--
+
+CREATE TABLE mb_release_discnrs (
+    gid uuid NOT NULL,
+    discnr smallint NOT NULL
+);
+
+
+--
+-- Name: mb_release_discnrs_v; Type: VIEW; Schema: mbot; Owner: -
+--
+
+CREATE VIEW mb_release_discnrs_v AS
+    WITH RECURSIVE discnrs(id, discnr) AS (SELECT a.id, 1 FROM musicbrainz.album a WHERE (NOT (EXISTS (SELECT 1 FROM musicbrainz.l_album_album l, musicbrainz.lt_album_album lt WHERE (((l.link_type = lt.id) AND ((lt.name)::text = 'part of set'::text)) AND (l.link1 = a.id))))) UNION SELECT DISTINCT l.link1, (nr.discnr + 1) FROM discnrs nr, musicbrainz.l_album_album l, musicbrainz.lt_album_album lt WHERE (((l.link_type = lt.id) AND ((lt.name)::text = 'part of set'::text)) AND (l.link0 = nr.id))) SELECT (a.gid)::uuid AS gid, d.discnr FROM discnrs d, musicbrainz.album a WHERE (a.id = d.id);
+
+
+--
 -- Name: tasks; Type: TABLE; Schema: mbot; Owner: -
 --
 
@@ -533,6 +569,14 @@ ALTER TABLE ONLY edits_relationship
 
 ALTER TABLE ONLY edits_relationship_track
     ADD CONSTRAINT edits_relationship_track_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: mb_release_discnrs_pkey; Type: CONSTRAINT; Schema: mbot; Owner: -
+--
+
+ALTER TABLE ONLY mb_release_discnrs
+    ADD CONSTRAINT mb_release_discnrs_pkey PRIMARY KEY (gid, discnr);
 
 
 --
