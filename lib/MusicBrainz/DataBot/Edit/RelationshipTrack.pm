@@ -96,6 +96,13 @@ sub run_task {
 		unless (defined $attr) {
 			return $self->report_failure($edit->{'id'}, "Could not find info for attribute $attrgid");
 		}
+		
+		if ($attr->{'attrname'} eq 'guest') {
+			unless ($self->is_guest_artist($edit)) {
+				$self->info("Skipping $attr->{attrname} attribute, as performer is track or release artist");
+				next;
+			}
+		}
 				
 		my $field = $edit_form->find_input("attr_$attr->{attrname}_0");
 		
@@ -150,55 +157,90 @@ sub validate {
 	my ($self, $edit) = @_;
 	my $sql = $self->sql;
 	
-	if ($edit->{'source'} eq 'discogs-trackrole') {
-		my $ws = WebService::MusicBrainz::Track->new;
-		$self->throttle('mbapi');
-		my $track = $ws->search({ MBID => $edit->{'link1gid'}, INC => "$edit->{link0type}-rels" });
-		$self->report_failure($edit->{'id'}, 'Could not find track on MusicBrainz WS') unless defined $track;
-		$track = $track->track;
-		
-		$edit->{'ws1'} = $track;
-		
-		my $artist_equiv = $sql->SelectSingleColumnArray("SELECT equiv FROM mbot.mbmap_artist_equiv WHERE artist='$edit->{link0gid}'");
-		my $artist_equiv_rev = $sql->SelectSingleColumnArray("SELECT artist FROM mbot.mbmap_artist_equiv WHERE equiv='$edit->{link0gid}'");
-		
-		if (defined $track->relation_list) {
-			my @rels = @{$track->relation_list->relations};
-			foreach my $rel (@rels) {
-				my $reltype = $rel->type;
-				$reltype =~ s/'/\\'/g;
-				
-				my $reltypegid = $sql->SelectSingleValue(
-							$self->select_from(
-								['gid'],
-								'mbot.ltinfo_artist_track',
-								{'shortlinkphrase' => lc($reltype)}));
-				
-				return $self->report_failure($edit->{'id'}, "Unknown link type: $reltype") unless defined $reltypegid && $reltypegid;
-				
-				my $rel_is_higher = $sql->SelectSingleValue(
+	if ($edit->{'linkname'} eq 'performer') {
+		unless ($self->is_guest_artist($edit)) {
+			return $self->report_failue($edit->{'id'}, 'Performer is listed as track or release artist');
+		}
+	}
+			
+	return $self->validate_relationship_is_new($edit);
+}	
+	
+sub validate_relationship_is_new {
+	my ($self, $edit) = @_;
+	my $sql = $self->sql;
+	
+	my $ws = WebService::MusicBrainz::Track->new;
+	$self->throttle('mbapi');
+	my $track = $ws->search({ MBID => $edit->{'link1gid'}, INC => "$edit->{link0type}-rels" });
+	$self->report_failure($edit->{'id'}, 'Could not find track on MusicBrainz WS') unless defined $track;
+	$track = $track->track;
+	
+	$edit->{'ws1'} = $track;
+	
+	my $artist_equiv = $sql->SelectSingleColumnArray("SELECT equiv FROM mbot.mbmap_artist_equiv WHERE artist='$edit->{link0gid}'");
+	
+	if (defined $track->relation_list) {
+		my @rels = @{$track->relation_list->relations};
+		foreach my $rel (@rels) {
+			my $reltype = $rel->type;
+			$reltype =~ s/'/\\'/g;
+			
+			my $reltypegid = $sql->SelectSingleValue(
+						$self->select_from(
+							['gid'],
+							'mbot.ltinfo_artist_track',
+							{'shortlinkphrase' => lc($reltype)}));
+			
+			return $self->report_failure($edit->{'id'}, "Unknown link type: $reltype") unless defined $reltypegid && $reltypegid;
+			
+			my $rel_is_higher = $sql->SelectSingleValue(
+				$self->select_from(
+					['1'],
+					'mbot.mb_link_type_descs',
+					{'link_type' => $reltypegid,
+					 'desc_type' => $edit->{'linkgid'},
+					 'link0type' => $edit->{'link0type'},
+					 'link1type' => $edit->{'link1type'}},
+					'LIMIT 1'));
+			my $rel_is_lower = $sql->SelectSingleValue(
+				$self->select_from(
+					['1'],
+					'mbot.mb_link_type_descs',
+					{'link_type' => $edit->{'linkgid'},
+					 'desc_type' => $reltypegid,
+					 'link0type' => $edit->{'link0type'},
+					 'link1type' => $edit->{'link1type'}},
+					'LIMIT 1'));
+			
+			my $relmsg;
+			if ($reltypegid eq $edit->{'linkgid'}) {
+				$relmsg = '.';
+			} elsif ($rel_is_higher || $rel_is_lower) {
+				my $link_is_planned = $sql->SelectSingleValue(
 					$self->select_from(
-						['1'],
-						'mbot.mb_link_type_descs',
-						{'link_type' => $reltypegid,
-						 'desc_type' => $edit->{'linkgid'},
-						 'link0type' => $edit->{'link0type'},
-						 'link1type' => $edit->{'link1type'}},
-						'LIMIT 1'));
-				my $rel_is_lower = $sql->SelectSingleValue(
-					$self->select_from(
-						['1'],
-						'mbot.mb_link_type_descs',
-						{'link_type' => $edit->{'linkgid'},
-						 'desc_type' => $reltypegid,
-						 'link0type' => $edit->{'link0type'},
-						 'link1type' => $edit->{'link1type'}},
+						['1',],
+						'discogs.both_links_listed',
+						{'artist'    => $rel->target,
+						 'track'     => $edit->{'link1gid'},
+						 'linktype1' => $edit->{'linkgid'},
+						 'linktype2' => $reltypegid},
 						'LIMIT 1'));
 				
-				my $relmsg;
-				if ($reltypegid eq $edit->{'linkgid'}) {
-					$relmsg = '.';
-				} elsif ($rel_is_higher || $rel_is_lower) {
+				next if $link_is_planned;
+				
+				$relmsg = ', existing type is more ' . ($rel_is_higher ? 'general.' : 'specific.');
+			} else {
+				next;
+			}
+			
+			if ($rel->target eq $edit->{'link0gid'}) {
+				return $self->report_failure($edit->{'id'}, 'Link exists with track' . $relmsg);
+			}
+			
+
+			foreach my $equiv (@{$artist_equiv}) {
+				if ($rel->target eq $equiv) {
 					my $link_is_planned = $sql->SelectSingleValue(
 						$self->select_from(
 							['1',],
@@ -211,40 +253,26 @@ sub validate {
 					
 					next if $link_is_planned;
 					
-					$relmsg = ', existing type is more ' . ($rel_is_higher ? 'general.' : 'specific.');
-				} else {
-					next;
-				}
-				
-				if ($rel->target eq $edit->{'link0gid'}) {
-					return $self->report_failure($edit->{'id'}, 'Link exists with track' . $relmsg);
-				}
-				
-
-				foreach my $equiv (@{$artist_equiv}) {
-					if ($rel->target eq $equiv) {
-						my $link_is_planned = $sql->SelectSingleValue(
-							$self->select_from(
-								['1',],
-								'discogs.both_links_listed',
-								{'artist'    => $rel->target,
-								 'track'     => $edit->{'link1gid'},
-								 'linktype1' => $edit->{'linkgid'},
-								 'linktype2' => $reltypegid},
-								'LIMIT 1'));
-						
-						next if $link_is_planned;
-						
-						return $self->report_failure($edit->{'id'}, 'Link exists (equiv) with track' . $relmsg);
-					}
+					return $self->report_failure($edit->{'id'}, 'Link exists (equiv) with track' . $relmsg);
 				}
 			}
 		}
-		
-		return 1;
-	} else {
-		return $self->report_failure($edit->{'id'}, 'Validation not defined for source ' . $edit->{'source'});
 	}
+	
+	return 1;
+}
+
+sub is_guest_artist {
+	my ($self, $edit) = @_;
+	my $sql = $self->sql;
+	
+	return $sql->SelectSingleValue(
+		$self->select_from(
+			['1',],
+			'mbot.equiv_track_artists',
+			{'artist'    => $edit->{'link0gid'},
+			 'track'     => $edit->{'link1gid'}},
+			'LIMIT 1'));
 }
 
 sub note_text {

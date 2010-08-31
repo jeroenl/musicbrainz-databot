@@ -474,6 +474,14 @@ CREATE VIEW edits_mb_type_from_relations_v AS
 
 
 --
+-- Name: equiv_track_artists; Type: VIEW; Schema: mbot; Owner: -
+--
+
+CREATE VIEW equiv_track_artists AS
+    SELECT track.gid AS track, equiv.artist FROM musicbrainz.album, musicbrainz.track, musicbrainz.artist, musicbrainz.albumjoin, mbmap_artist_equiv equiv WHERE ((((equiv.equiv = artist.gid) AND (artist.id = album.artist)) AND (albumjoin.album = album.id)) AND (albumjoin.track = track.id)) UNION SELECT track.gid AS track, equiv.artist FROM musicbrainz.track, musicbrainz.artist, mbmap_artist_equiv equiv WHERE ((equiv.equiv = artist.gid) AND (artist.id = track.artist));
+
+
+--
 -- Name: ltinfo_artist_track; Type: VIEW; Schema: mbot; Owner: -
 --
 
